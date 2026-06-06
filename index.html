@@ -81,8 +81,9 @@ body{background:#f0f2f5;margin:0}
       <select id="selYear" class="form-select form-select-sm" style="width:84px"></select>
       <span class="text-white small">년</span>
       <button class="btn btn-warning btn-sm fw-bold" onclick="openImportModal()" title="정산보고 엑셀을 업로드해서 자동 입력">📥 엑셀 임포트</button>
-      <button class="btn btn-info btn-sm fw-bold" onclick="document.getElementById('cmFile').click()" title="centermmark 회원 데이터(JSON)를 불러와 위탁자·유형·가입비·실계좌를 동기화">👥 회원 가져오기</button>
+      <button class="btn btn-info btn-sm fw-bold" onclick="document.getElementById('cmFile').click()" title="centermmark 회원 데이터(JSON)를 불러옵니다(풀 적재). 실시간 아님.">👥 회원 불러오기</button>
       <input type="file" id="cmFile" accept=".json" style="display:none" onchange="importCentermmark(this.files[0])">
+      <button class="btn btn-info btn-sm" onclick="applyToCurrentMonth()" title="불러온 회원정보를 '이번 달'에만 반영하고 그 달 상태로 고정">🔄 이 달 회원반영</button>
       <button class="btn btn-outline-light btn-sm" onclick="exportSettlementJSON()" title="이번 달 09.정산배분을 JSON으로 내보내 centermmark에 반영">📤 정산 내보내기</button>
       <button class="btn btn-outline-light btn-sm" onclick="saveAllData()">💾 저장</button>
       <button class="btn btn-outline-light btn-sm" onclick="resetMonth()">🔄 초기화</button>
@@ -529,35 +530,45 @@ const ROOMS = [
   {no:44,fl:19,rm:'1907',nm:'박재운', area:110.36, price:286000000, bank:'농협', acct:'351-0659-9244-23', trustee:'장금만',       type:'수익형', joinFee:1, typeHistory:[]},
 ];
 
-// 호실별 전역 메타 저장소 (joinFee, typeHistory는 localStorage 영구보관)
-function loadRoomMeta(){
-  const raw=localStorage.getItem('kims_room_meta');
-  if(!raw) return;
-  try{
-    const meta=JSON.parse(raw);
-    ROOMS.forEach((r)=>{
-      if(meta[r.rm]){
-        r.joinFee     = meta[r.rm].joinFee     ?? r.joinFee;
-        r.type        = meta[r.rm].type        ?? r.type;
-        r.typeHistory = meta[r.rm].typeHistory ?? [];
-        r.terminated  = meta[r.rm].terminated  ?? false;   // 해지여부
-        r.terminatedDate = meta[r.rm].terminatedDate ?? ''; // 해지일자
-        r.terminatedNote = meta[r.rm].terminatedNote ?? ''; // 해지사유
-      }
-    });
-  }catch(e){}
+// ★ 객실 메타(유형/가입비/해지)는 '월별'로 보관한다 (kims_room_meta_{년}_{월}).
+//   각 월은 그 달에 저장된 상태로 고정(freeze)되며, 실시간으로 바뀌지 않는다.
+//   메타가 없는 새 달은 가장 가까운 과거 달의 상태를 이월(carry-forward)한 뒤 그 달로 고정.
+const ROOMS_BASE = ROOMS.map(r=>({type:r.type, joinFee:r.joinFee}));
+function _metaKey(y,m){ return `kims_room_meta_${y}_${m}`; }
+function _resetRoomMetaToBase(){
+  ROOMS.forEach((r,i)=>{
+    r.type=ROOMS_BASE[i].type; r.joinFee=ROOMS_BASE[i].joinFee;
+    r.typeHistory=[]; r.terminated=false; r.terminatedDate=''; r.terminatedNote='';
+  });
 }
-function saveRoomMeta(){
+function _applyMetaObj(meta){
+  ROOMS.forEach(r=>{ if(meta[r.rm]){
+    r.joinFee=meta[r.rm].joinFee??r.joinFee; r.type=meta[r.rm].type??r.type;
+    r.typeHistory=meta[r.rm].typeHistory??[]; r.terminated=meta[r.rm].terminated??false;
+    r.terminatedDate=meta[r.rm].terminatedDate??''; r.terminatedNote=meta[r.rm].terminatedNote??'';
+  }});
+}
+function loadRoomMeta(y,m){
+  y = (y!=null)?y:CY; m = (m!=null)?m:CM;
+  _resetRoomMetaToBase();                       // 이전 달 값 잔류 방지
+  let raw = localStorage.getItem(_metaKey(y,m));
+  const ownExists = !!raw;
+  if(!raw){                                     // 이월: 가장 가까운 과거 달 → 레거시 전역
+    for(let mm=m-1; mm>=1 && !raw; mm--) raw=localStorage.getItem(_metaKey(y,mm));
+    for(let yy=y-1; yy>=2024 && !raw; yy--) for(let mm=12; mm>=1 && !raw; mm--) raw=localStorage.getItem(_metaKey(yy,mm));
+    if(!raw) raw=localStorage.getItem('kims_room_meta'); // 구버전 전역 메타 호환
+  }
+  if(raw){ try{ _applyMetaObj(JSON.parse(raw)); }catch(e){} }
+  if(!ownExists) saveRoomMeta(y,m);             // 이월분을 이 달 메타로 고정(freeze)
+}
+function saveRoomMeta(y,m){
+  y=(y!=null)?y:CY; m=(m!=null)?m:CM;
   const meta={};
   ROOMS.forEach(r=>{
-    meta[r.rm]={
-      joinFee:r.joinFee, type:r.type, typeHistory:r.typeHistory||[],
-      terminated:r.terminated||false,
-      terminatedDate:r.terminatedDate||'',
-      terminatedNote:r.terminatedNote||'',
-    };
+    meta[r.rm]={ joinFee:r.joinFee, type:r.type, typeHistory:r.typeHistory||[],
+      terminated:r.terminated||false, terminatedDate:r.terminatedDate||'', terminatedNote:r.terminatedNote||'' };
   });
-  localStorage.setItem('kims_room_meta', JSON.stringify(meta));
+  localStorage.setItem(_metaKey(y,m), JSON.stringify(meta));
 }
 
 const OTA_CHANNELS = ['온다판매대행','온다BP','여기어때','야놀자(호텔나우)','야놀자(데일리호텔)','네이버','삼삼엠투','리브애니웨어','야놀자(호텔나우)_하드블럭','야놀자(데일리호텔)_하드블럭','Airbnb','Agoda','Expedia','Booking.com','Trip.com','피터펜','콘도24','야놀자(게하)'];
@@ -759,8 +770,7 @@ function injectSeedData(){
 }
 
 function init(){
-  loadRoomMeta(); // 호실 메타(가입비/유형이력) 먼저 로드
-  applyCentermmark(); // centermmark 회원 마스터(있으면) 반영
+  // 객실 메타는 월별로 loadMonth() 안에서 로드한다(실시간 전역반영 안 함).
   const ysel = inp('selYear');
   for(let y=2024;y<=2030;y++) ysel.innerHTML+=`<option value="${y}" ${y===2026?'selected':''}>${y}년</option>`;
   ysel.addEventListener('change',()=>{ CY=parseInt(ysel.value); buildMonthNav(); loadMonth(); });
@@ -769,13 +779,13 @@ function init(){
   loadMonth();
 }
 
-// ===== centermmark(회원 포털) 연동 =====
-// centermmark 가 내보낸 회원 JSON 을 ROOMS 마스터에 반영한다.
-// 개인정보(실계좌·연락처·생년월일)는 브라우저 localStorage 에만 보관되며 공개 레포에 저장되지 않는다.
-function applyCentermmark(){
+// ===== centermmark(회원 포털) 연동 — '실시간 아님', 버튼 누를 때만 '현재 월'에 반영 =====
+// centermmark JSON 은 localStorage('kims_centermmark') 풀에 보관(개인정보는 브라우저에만).
+// 반영하면 ROOMS 에 적용 후 그 달의 메타로 저장(freeze)되어, 이후 다른 달/연동변경에 영향받지 않는다.
+function applyCentermmark(){  // 풀 → ROOMS 적용(현재 월). 반환: 반영 실수
   let data;
   try { data = JSON.parse(localStorage.getItem('kims_centermmark')||'null'); } catch(e){ data=null; }
-  if(!data || !Array.isArray(data.rooms)) return;
+  if(!data || !Array.isArray(data.rooms)) return 0;
   const byRm = {};
   data.rooms.forEach(r => { byRm[parseInt(r.rm,10)] = r; });
   let n=0;
@@ -792,8 +802,22 @@ function applyCentermmark(){
     room.cm = { phone:c.phone||'', birth:c.birth||'', acctHolder:c.acctHolder||'',
                 tenantCount:c.tenantCount||0, contractStart:c.contractStart||'', contractEnd:c.contractEnd||'' };
   });
-  const st = document.getElementById('cmStatus');
-  if(st) st.textContent = `✓ centermmark 연동 ${n}실 (${data.generatedAt||''})`;
+  return n;
+}
+
+// 버튼: 저장된 centermmark 회원정보를 '이번 달'에 반영하고 그 달 메타로 고정(freeze)
+function applyToCurrentMonth(){
+  if(!localStorage.getItem('kims_centermmark')){
+    alert('먼저 "👥 회원 불러오기"로 centermmark JSON 파일을 업로드하세요.'); return;
+  }
+  if(!confirm(`${CY}년 ${CM}월에 centermmark 회원정보(위탁자·유형·가입비·실계좌·해지)를 반영하고 이 달 상태로 고정할까요?\n(다른 달에는 영향을 주지 않습니다)`)) return;
+  const n = applyCentermmark();
+  saveRoomMeta(CY,CM);          // 이 달 메타로 freeze
+  if(typeof calcAll==='function') calcAll();
+  if(typeof renderCurrentSheet==='function') renderCurrentSheet();
+  const st=document.getElementById('cmStatus');
+  if(st) st.textContent = `✓ ${CY}.${CM} 회원반영 ${n}실 (고정됨)`;
+  alert(`${CY}년 ${CM}월에 회원정보 ${n}실을 반영·고정했습니다.`);
 }
 
 function importCentermmark(file){
@@ -805,11 +829,11 @@ function importCentermmark(file){
       if(!data.rooms) throw new Error('형식 오류: rooms 없음');
       data.generatedAt = new Date().toLocaleString('ko-KR');
       localStorage.setItem('kims_centermmark', JSON.stringify(data));
-      applyCentermmark();
-      if(typeof renderRooms==='function') renderRooms();
-      if(typeof calcAll==='function') calcAll();
-      if(typeof loadMonth==='function') loadMonth();
-      alert(`centermmark 회원 ${data.rooms.length}실을 반영했습니다.`);
+      const st=document.getElementById('cmStatus');
+      if(st) st.textContent = `풀 적재 ${data.rooms.length}실 (미반영)`;
+      if(confirm(`centermmark 회원 ${data.rooms.length}실을 불러왔습니다.\n지금 ${CY}년 ${CM}월에 반영(고정)할까요?\n(아니오를 누르면 나중에 "🔄 이 달 회원반영" 버튼으로 반영)`)){
+        applyToCurrentMonth();
+      }
     }catch(err){ alert('가져오기 실패: '+err.message); }
   };
   reader.readAsText(file, 'utf-8');
@@ -902,6 +926,9 @@ function loadMonth(){
       DATA[y][m] = JSON.parse(raw);
     } catch(err){ console.warn('loadMonth parse error', err); }
   }
+
+  // ★ 이 달의 객실 메타(유형/가입비/해지)를 로드 → ROOMS 를 이 달 상태로 고정
+  loadRoomMeta(y, m);
 
   const d = getM(y, m);
   const monthName = `${y}년 ${m}월`;
