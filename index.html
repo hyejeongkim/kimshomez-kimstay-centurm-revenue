@@ -384,8 +384,6 @@ body{background:#f0f2f5;margin:0}
             <th rowspan="2">수탁자</th><th rowspan="2">구분</th>
             <th rowspan="2" title="수익형: 납입(80%)/면제(60%), 관리형: 납입여부">가입비<br><small style="font-weight:normal;font-size:.65rem;color:#666">(수익/관리)</small></th>
             <th rowspan="2" class="win" style="min-width:90px">월고정<br>숙박료</th>
-            <th rowspan="2">계약</th>
-            <th rowspan="2">투숙시작</th><th rowspan="2">투숙종료</th>
             <th rowspan="2" class="win" style="min-width:100px">기준수익금</th>
             <th rowspan="2" class="win" style="min-width:80px">누적미수금</th>
             <th rowspan="2" class="win" style="min-width:80px">선지급금</th>
@@ -406,7 +404,7 @@ body{background:#f0f2f5;margin:0}
         <tbody id="settle-tbody"></tbody>
         <tfoot>
           <tr class="total-row">
-            <td colspan="10">합계</td>
+            <td colspan="7">합계</td>
             <td class="win" id="s9-tot-base"></td>
             <td class="win" id="s9-tot-ar"></td>
             <td class="win" id="s9-tot-pre"></td>
@@ -1902,13 +1900,6 @@ function calcSettle(){
       +'<td>'+typeBadge+'</td>'
       +'<td class="text-center">'+joinBadge+'</td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:85px" id="s9_fix_'+i+'" value="'+(fixedM||'')+'" placeholder="0" oninput="updateSettleRoom('+i+',\'fixedMonthly\',this.value)"></td>'
-      +'<td><select class="form-select form-select-sm" style="width:65px;font-size:.7rem" id="s9_stype_'+i+'" onchange="updateSettleRoom('+i+',\'stayType\',this.value)">'
-        +'<option value=""'+(!r.stayType?' selected':'')+'>-</option>'
-        +'<option value="장기"'+(r.stayType==='장기'?' selected':'')+'>장기</option>'
-        +'<option value="단기"'+(r.stayType==='단기'?' selected':'')+'>단기</option>'
-        +'</select></td>'
-      +'<td><input type="date" class="form-control form-control-xs" style="width:115px;font-size:.7rem" id="s9_ss_'+i+'" value="'+(r.stayStart||'')+'" oninput="updateSettleRoom('+i+',\'stayStart\',this.value)"></td>'
-      +'<td><input type="date" class="form-control form-control-xs" style="width:115px;font-size:.7rem" id="s9_se_'+i+'" value="'+(r.stayEnd||'')+'" oninput="updateSettleRoom('+i+',\'stayEnd\',this.value)"></td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:95px" id="s9_base_'+i+'" value="'+(baseAmt||'')+'" placeholder="'+(autoBase||0)+'" oninput="updateSettleBase('+i+',this.value)" title="'+(isProfit?(room.joinFee===1?'80%':'60%')+'='+autoBase:'')+'"></td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_ar_'+i+'" value="'+(ar||'')+'" placeholder="0" oninput="updateSettleRoom('+i+',\'accruedAR\',this.value)"></td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_pre_'+i+'" value="'+(pre||'')+'" placeholder="0" oninput="updateSettleRoom('+i+',\'prepay\',this.value)"></td>'
