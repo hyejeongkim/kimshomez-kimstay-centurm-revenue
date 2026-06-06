@@ -3613,5 +3613,107 @@ function confirmImport(){
   </div>
 </div>
 
+<!-- ===== 권한 제어(members 토큰 검증) ===== -->
+<div id="accessBlock" style="display:none;position:fixed;inset:0;background:#0d1b2a;color:#fff;z-index:9999;align-items:center;justify-content:center;text-align:center;flex-direction:column;font-family:sans-serif">
+  <div style="font-size:42px">🔒</div>
+  <h2 style="margin:12px 0 6px">접근 권한이 필요합니다</h2>
+  <p style="opacity:.8">위탁회원 포털(members)에서 로그인 후 <b>“수익금 정산 내역 보기”</b>로 접속해주세요.</p>
+  <p id="accessHint" style="opacity:.6;font-size:13px"></p>
+</div>
+<div id="roleBadge" style="display:none;position:fixed;right:10px;bottom:10px;z-index:9998;background:#1f6feb;color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;font-family:sans-serif"></div>
+
+<script>
+(function(){
+  const ACCESS = { role:'none', rooms:[] };
+  function qp(k){ return new URLSearchParams(location.search).get(k); }
+
+  async function verifyAccess(){
+    const tok = qp('access'), api = qp('api');
+    if(!tok || !api) return;
+    try{
+      const r = await fetch(`${api}/api/access/verify?token=${encodeURIComponent(tok)}`);
+      const d = await r.json();
+      if(d && d.valid){ ACCESS.role=d.role; ACCESS.rooms=(d.rooms||[]).map(x=>parseInt(x,10)); }
+    }catch(e){ /* members 미접속/CORS */ }
+  }
+
+  function hideByOnclick(fns, hide){
+    document.querySelectorAll('button, label.btn').forEach(el=>{
+      const oc=(el.getAttribute('onclick')||'');
+      const hasUpload = el.querySelector && el.querySelector('input[type=file]');
+      if(hide && (fns.some(f=>oc.includes(f)) || hasUpload)) el.style.display='none';
+    });
+  }
+
+  function gate(){
+    const role = ACCESS.role;
+    const isAdmin = role==='admin';
+    const canPDF = role==='admin' || role==='trustee';
+    const valid = role && role!=='none';
+
+    // 토큰 없음/무효 → 전체 차단
+    const block=document.getElementById('accessBlock');
+    if(!valid){
+      if(block){ block.style.display='flex';
+        const h=document.getElementById('accessHint');
+        if(h) h.textContent = qp('access') ? '(토큰이 만료되었거나 유효하지 않습니다)' : '(접근 토큰이 없습니다)';
+      }
+      return;
+    }
+    if(block) block.style.display='none';
+
+    // 역할 배지
+    const rb=document.getElementById('roleBadge');
+    if(rb){ rb.style.display='block';
+      rb.textContent = {admin:'관리자(전체권한)', trustee:'위탁자(조회·PDF)', viewer:'미위탁(조회만)'}[role]||role; }
+
+    // 09.정산배분(최종): admin만
+    document.querySelectorAll('.sheet-btn').forEach(b=>{
+      if(/showSheet\('s09'\)/.test(b.getAttribute('onclick')||'')) b.style.display = isAdmin?'':'none';
+    });
+    // 비admin이 s09 보고 있으면 다른 탭으로
+    if(!isAdmin){ const p=document.getElementById('pane-s09'); if(p&&p.classList.contains('active')){ if(typeof showSheetById==='function'){} } }
+
+    // 저장/편집/업로드/템플릿/엑셀임포트/초기화/centermmark/시트별엑셀/전체엑셀 = admin만
+    hideByOnclick(['saveAllData','resetMonth','openImportModal','importCentermmark',
+      'applyToCurrentMonth','exportSettlementJSON','uploadPMS','uploadCostSheet','uploadMgmt',
+      'downloadTemplate','downloadExcelAll','downloadExcelBySheet','document.getElementById(\'cmFile\')'], !isAdmin);
+
+    // PDF: admin·trustee 만 (viewer 숨김)
+    hideByOnclick(['downloadPDFAll','downloadPDFCurrent'], !canPDF);
+
+    // 읽기전용: 비admin → 입력 비활성화
+    if(!isAdmin){
+      document.querySelectorAll('#app input, input, select, textarea').forEach(el=>{
+        if(el.id==='cmFile') return; el.disabled=true; el.readOnly=true;
+      });
+    }
+
+    // 본인 호실만: trustee/viewer → 이체실행자료(s08) 등 행 필터
+    if(!isAdmin && ACCESS.rooms.length){
+      document.querySelectorAll('#exec-tbody tr').forEach(tr=>{
+        const cells=tr.querySelectorAll('td');
+        let rm=null; cells.forEach(td=>{ const n=parseInt((td.textContent||'').trim(),10); if(rm===null && td.classList.contains('fw-bold')) rm=n; });
+        if(rm!==null && !ACCESS.rooms.includes(rm)) tr.style.display='none';
+      });
+    }
+  }
+
+  // 렌더/월전환 후 매번 재적용
+  ['renderCurrentSheet','loadMonth','showSheet','renderExec','calcSettle'].forEach(fn=>{
+    if(typeof window[fn]==='function'){
+      const orig=window[fn];
+      window[fn]=function(){ const r=orig.apply(this,arguments); try{gate();}catch(e){} return r; };
+    }
+  });
+
+  window.addEventListener('DOMContentLoaded', async ()=>{
+    await verifyAccess();
+    // init(다른 DOMContentLoaded 리스너)이 끝난 뒤 적용되도록 약간 지연
+    setTimeout(gate, 0);
+  });
+})();
+</script>
+
 </body>
 </html>
