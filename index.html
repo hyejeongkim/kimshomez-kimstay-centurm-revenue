@@ -1270,14 +1270,14 @@ function renderPerf(){
   } else {
     rows+='<tr><td></td><td></td><td></td><td></td><td></td></tr>';
   }
-  rows+='<tr class="total-row"><td>매출총액 (A)</td>'
+  rows+='<tr class="total-row"><td colspan="2">매출총액 (A)</td>'
     +'<td class="win">'+totalSales.toLocaleString()+'</td>'
     +'<td class="win">'+fc(p1?p1.sales:null)+'</td>'
     +'<td class="win">'+fc(p2?p2.sales:null)+'</td>'
     +'<td></td></tr>';
 
   // ── 고정비 (Annex 1)
-  const fixedRowCnt=FIXED_SECS.reduce(function(s,sec){return s+sec.items.length;},0)+2;
+  const fixedRowCnt=FIXED_SECS.reduce(function(s,sec){return s+sec.items.length;},0)+1;
   rows+='<tr><td rowspan="'+fixedRowCnt+'">Annex 1<br>고정비</td>';
   let firstFixed=true;
   FIXED_SECS.forEach(function(sec){
@@ -1340,7 +1340,7 @@ function renderPerf(){
     +'<td></td></tr>';
 
   // ── 비용총액/영업이익
-  rows+='<tr class="total-row"><td>비용총액 (B)</td>'
+  rows+='<tr class="total-row"><td colspan="2">비용총액 (B)</td>'
     +'<td class="win">'+totalCost.toLocaleString()+'</td>'
     +'<td class="win">'+fc(p1?p1.cost:null)+'</td>'
     +'<td class="win">'+fc(p2?p2.cost:null)+'</td>'
