@@ -3624,17 +3624,22 @@ function confirmImport(){
 
 <script>
 (function(){
+  // 권한 정보가 없을 때 이동할 곳 (로그인/홈)
+  const NO_ACCESS_REDIRECT = 'https://www.kimshomez.com';
   const ACCESS = { role:'none', rooms:[] };
+  let accessChecked = false;   // verifyAccess 완료 여부(완료 전엔 리다이렉트 금지)
   function qp(k){ return new URLSearchParams(location.search).get(k); }
 
   async function verifyAccess(){
     const tok = qp('access'), api = qp('api');
-    if(!tok || !api) return;
-    try{
-      const r = await fetch(`${api}/api/access/verify?token=${encodeURIComponent(tok)}`);
-      const d = await r.json();
-      if(d && d.valid){ ACCESS.role=d.role; ACCESS.rooms=(d.rooms||[]).map(x=>parseInt(x,10)); }
-    }catch(e){ /* members 미접속/CORS */ }
+    if(tok && api){
+      try{
+        const r = await fetch(`${api}/api/access/verify?token=${encodeURIComponent(tok)}`);
+        const d = await r.json();
+        if(d && d.valid){ ACCESS.role=d.role; ACCESS.rooms=(d.rooms||[]).map(x=>parseInt(x,10)); }
+      }catch(e){ /* members 미접속/CORS */ }
+    }
+    accessChecked = true;
   }
 
   function hideByOnclick(fns, hide){
@@ -3651,13 +3656,16 @@ function confirmImport(){
     const canPDF = role==='admin' || role==='trustee';
     const valid = role && role!=='none';
 
-    // 토큰 없음/무효 → 전체 차단
     const block=document.getElementById('accessBlock');
+    // 권한 확인 전: 잠시 가림(리다이렉트 금지)
+    if(!accessChecked){ if(block) block.style.display='flex'; return; }
+    // 확인 완료 + 권한 없음 → 로그인/홈으로 이동
     if(!valid){
       if(block){ block.style.display='flex';
         const h=document.getElementById('accessHint');
-        if(h) h.textContent = qp('access') ? '(토큰이 만료되었거나 유효하지 않습니다)' : '(접근 토큰이 없습니다)';
+        if(h) h.textContent = '권한 정보가 없어 이동합니다…';
       }
+      location.replace(NO_ACCESS_REDIRECT);
       return;
     }
     if(block) block.style.display='none';
