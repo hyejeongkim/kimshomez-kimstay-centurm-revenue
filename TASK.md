@@ -1,4 +1,4 @@
-﻿Build a complete web application for KIMS HOMES monthly revenue settlement (수익금정산). 
+Build a complete web application for KIMS HOMES monthly revenue settlement (수익금정산). 
 
 ## Project: kimstay-settlement
 Single HTML file app (no build tools needed) using vanilla HTML/CSS/JavaScript + CDN libraries.

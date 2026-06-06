@@ -1,4 +1,4 @@
-﻿# KIMS HOMES 수익금정산 관리시스템
+# KIMS HOMES 수익금정산 관리시스템
 ## KimsStay Yangyang — Revenue Settlement Management System
 
 > ㈜킴스아이텍 | 킴스테이양양 위탁운영 수익금 정산 웹 관리시스템
