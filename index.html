@@ -88,6 +88,10 @@ body{background:#f0f2f5;margin:0}
       <button class="btn btn-outline-light btn-sm" onclick="saveAllData()">💾 저장</button>
       <button class="btn btn-outline-light btn-sm" onclick="resetMonth()">🔄 초기화</button>
       <span id="cmStatus" class="text-white small"></span>
+      <span class="text-white-50 mx-1" style="font-size:.8rem">|</span>
+      <a class="btn btn-light btn-sm fw-bold" href="https://members.kimshomez.com" title="위탁회원 포털(위탁정보)">🏢 위탁정보</a>
+      <a class="btn btn-outline-light btn-sm" href="https://www.kimshomez.com" title="킴스홈즈 홈페이지">🏠 홈</a>
+      <button class="btn btn-outline-warning btn-sm fw-bold" onclick="revenueLogout()" title="로그아웃">⏻ 로그아웃</button>
     </div>
   </div>
 </div>
@@ -664,7 +668,12 @@ const SPECIAL_SECS = [
 // ============================================================
 // STATE
 // ============================================================
-let CY = 2026, CM = 6;
+// 정산 조회 가능 기준월: 직전 완료월까지(이번 달 정산은 미도래). 매월 자동 진행.
+const _today = new Date();
+const CUTOFF_Y = _today.getMonth()===0 ? _today.getFullYear()-1 : _today.getFullYear();
+const CUTOFF_M = _today.getMonth()===0 ? 12 : _today.getMonth(); // getMonth()=현재월-1 = 직전 완료월
+function isMonthAvailable(y,m){ return (y < CUTOFF_Y) || (y===CUTOFF_Y && m<=CUTOFF_M); }
+let CY = CUTOFF_Y, CM = CUTOFF_M;   // 기본 조회월 = 기준월(예: 2026년 5월)
 let DATA = {}; // DATA[year][month] = {ota:{}, field:{}, walkin, costs:{}, rooms:[]}
 
 function getM(y,m){ 
@@ -772,7 +781,7 @@ function injectSeedData(){
 function init(){
   // 객실 메타는 월별로 loadMonth() 안에서 로드한다(실시간 전역반영 안 함).
   const ysel = inp('selYear');
-  for(let y=2024;y<=2030;y++) ysel.innerHTML+=`<option value="${y}" ${y===2026?'selected':''}>${y}년</option>`;
+  for(let y=2024;y<=2030;y++) ysel.innerHTML+=`<option value="${y}" ${y===CY?'selected':''}>${y}년</option>`;
   ysel.addEventListener('change',()=>{ CY=parseInt(ysel.value); buildMonthNav(); loadMonth(); });
   buildMonthNav();
   buildCostSheets();
@@ -871,21 +880,28 @@ function buildMonthNav(){
   nav.innerHTML = '<span class="fw-bold text-muted me-2" style="font-size:.82rem">월별:</span>';
   months.forEach((ml,i)=>{
     const m=i+1;
+    const avail = isMonthAvailable(CY,m);
     const btn=document.createElement('div');
-    btn.className='month-tab'+(m===CM?' active':'');
+    btn.className='month-tab'+(m===CM?' active':'')+(avail?'':' disabled');
     btn.textContent=ml;
-    btn.onclick=()=>{
-      if(CM===m) return; // 같은 달 클릭 무시
-      // ① 먼저 현재 달(CM) 데이터 수집·저장
-      collectCurrentInputs();
-      localStorage.setItem(`kims_${CY}_${CM}`, JSON.stringify(getM(CY,CM)));
-      // ② 그 다음 달 전환
-      CM=m;
-      document.querySelectorAll('.month-tab').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-      // ③ 새 달 로드
-      loadMonth();
-    };
+    if(!avail){
+      btn.style.opacity='.4'; btn.style.cursor='not-allowed';
+      btn.title='아직 정산 기간이 도래하지 않았습니다.';
+      btn.onclick=()=>{ alert(`${CY}년 ${m}월 정산은 아직 기간이 도래하지 않았습니다.\n현재 ${CUTOFF_Y}년 ${CUTOFF_M}월 정산까지 조회할 수 있습니다.`); };
+    } else {
+      btn.onclick=()=>{
+        if(CM===m) return; // 같은 달 클릭 무시
+        // ① 먼저 현재 달(CM) 데이터 수집·저장
+        collectCurrentInputs();
+        localStorage.setItem(`kims_${CY}_${CM}`, JSON.stringify(getM(CY,CM)));
+        // ② 그 다음 달 전환
+        CM=m;
+        document.querySelectorAll('.month-tab').forEach(b=>b.classList.remove('active'));
+        btn.classList.add('active');
+        // ③ 새 달 로드
+        loadMonth();
+      };
+    }
     nav.appendChild(btn);
   });
 }
@@ -2948,18 +2964,19 @@ function downloadPDFAll(){
     return html;
   }
 
-  // ── 08. 이체실행자료 HTML
+  // ── 08. 이체실행자료 HTML  (비admin은 관리인·계좌번호 컬럼 숨김)
+  var pii = !!window.__piiHide;
   var s08html='<h3>'+mn+' 이체실행자료 (정산 최종)</h3>';
-  s08html+='<table><thead><tr><th>No.</th><th>층</th><th>호실</th><th>관리인</th><th>유형</th><th>계좌번호</th><th>기준수익금</th><th>누적미수금</th><th>선지급금</th><th>지급금</th><th>VAT</th><th>실지급수익금</th><th>지급여부</th></tr></thead><tbody>';
+  s08html+='<table><thead><tr><th>No.</th><th>층</th><th>호실</th>'+(pii?'':'<th>관리인</th>')+'<th>유형</th>'+(pii?'':'<th>계좌번호</th>')+'<th>기준수익금</th><th>누적미수금</th><th>선지급금</th><th>지급금</th><th>VAT</th><th>실지급수익금</th><th>지급여부</th></tr></thead><tbody>';
   var tB=0,tA2=0,tP2=0,tPa2=0,tV2=0,tF2=0;
   d.rooms.forEach(function(r,i){
     var rm=ROOMS[i];if(!rm)return;
     var cls=rm.type==='수익형'&&(r.final||0)>0?'profit-row':rm.type==='관리형'?'manage-row':'';
     if(rm.terminated)cls='term-row';
     tB+=(r.baseOverride||0);tA2+=(r.accruedAR||0);tP2+=(r.prepay||0);tPa2+=(r.paid||0);tV2+=(r.vat||0);tF2+=(r.final||0);
-    s08html+='<tr class="'+cls+'"><td>'+rm.no+'</td><td>'+rm.fl+'</td><td>'+rm.rm+'</td><td>'+rm.trustee+'</td><td>'+rm.type+'</td><td style="font-size:7px">'+rm.acct+'</td><td class="num">'+fmt(r.baseOverride||0)+'</td><td class="num">'+fmt(r.accruedAR||0)+'</td><td class="num">'+fmt(r.prepay||0)+'</td><td class="num">'+fmt(r.paid||0)+'</td><td class="num">'+fmt(r.vat||0)+'</td><td class="num bold">'+fmt(r.final||0)+'</td><td>'+(r.paid_yn==='Y'?'✅지급':r.paid_yn==='N'?'❌미지급':'-')+'</td></tr>';
+    s08html+='<tr class="'+cls+'"><td>'+rm.no+'</td><td>'+rm.fl+'</td><td>'+rm.rm+'</td>'+(pii?'':'<td>'+rm.trustee+'</td>')+'<td>'+rm.type+'</td>'+(pii?'':'<td style="font-size:7px">'+rm.acct+'</td>')+'<td class="num">'+fmt(r.baseOverride||0)+'</td><td class="num">'+fmt(r.accruedAR||0)+'</td><td class="num">'+fmt(r.prepay||0)+'</td><td class="num">'+fmt(r.paid||0)+'</td><td class="num">'+fmt(r.vat||0)+'</td><td class="num bold">'+fmt(r.final||0)+'</td><td>'+(r.paid_yn==='Y'?'✅지급':r.paid_yn==='N'?'❌미지급':'-')+'</td></tr>';
   });
-  s08html+='<tr class="total"><td colspan="6">합계</td><td class="num">'+fmt(tB)+'</td><td class="num">'+fmt(tA2)+'</td><td class="num">'+fmt(tP2)+'</td><td class="num">'+fmt(tPa2)+'</td><td class="num">'+fmt(tV2)+'</td><td class="num bold">'+fmt(tF2)+'</td><td></td></tr>';
+  s08html+='<tr class="total"><td colspan="'+(pii?4:6)+'">합계</td><td class="num">'+fmt(tB)+'</td><td class="num">'+fmt(tA2)+'</td><td class="num">'+fmt(tP2)+'</td><td class="num">'+fmt(tPa2)+'</td><td class="num">'+fmt(tV2)+'</td><td class="num bold">'+fmt(tF2)+'</td><td></td></tr>';
   s08html+='</tbody></table>';
 
   // ── 인쇄 창 열기
@@ -3627,6 +3644,29 @@ function confirmImport(){
   // 권한 정보가 없을 때 이동할 곳 (로그인/홈)
   const NO_ACCESS_REDIRECT = 'https://www.kimshomez.com';
   const ACCESS = { role:'none', rooms:[] };
+
+  // 로그아웃: *.kimshomez.com 공유 로그인 표식 제거 후 홈으로
+  window.revenueLogout = function(){
+    try{ const e='kh_login=; path=/; max-age=0'; document.cookie=e;
+      if(location.hostname.endsWith('kimshomez.com')) document.cookie=e+'; domain=.kimshomez.com'; }catch(_){}
+    location.href='https://www.kimshomez.com';
+  };
+
+  // PII(계좌·소유자명·수탁인명) 컬럼 숨김 — 04 이체자료/08 이체실행자료
+  function setCols(sel, cols, hide){
+    document.querySelectorAll(sel).forEach(tbl=>{
+      const heads = tbl.querySelectorAll('thead th');
+      cols.forEach(c=>{ if(heads[c-1]) heads[c-1].style.display = hide?'none':''; });
+      tbl.querySelectorAll('tbody tr').forEach(tr=>{
+        const tds=tr.querySelectorAll('td');
+        cols.forEach(c=>{ if(tds[c-1]) tds[c-1].style.display = hide?'none':''; });
+      });
+    });
+  }
+  function applyPiiHide(hide){
+    setCols('#pane-s04 table', [4,7,8], hide);     // 성함·은행명·계좌번호
+    setCols('#pane-s08 table', [4,7,8,10], hide);  // 성함(소유)·은행·계좌번호·성함(수탁)
+  }
   let accessChecked = false;   // verifyAccess 완료 여부(완료 전엔 리다이렉트 금지)
   function qp(k){ return new URLSearchParams(location.search).get(k); }
 
@@ -3690,21 +3730,20 @@ function confirmImport(){
     // PDF: admin·trustee 만 (viewer 숨김)
     hideByOnclick(['downloadPDFAll','downloadPDFCurrent'], !canPDF);
 
-    // 읽기전용: 비admin → 입력 비활성화
+    // 읽기전용: 비admin → 입력 비활성화 (단, 연도선택·필터 등 탐색 컨트롤은 유지)
     if(!isAdmin){
+      const keepEnabled = el => el.id==='cmFile' || el.id==='selYear' || (el.id||'').startsWith('exec-filter');
       document.querySelectorAll('#app input, input, select, textarea').forEach(el=>{
-        if(el.id==='cmFile') return; el.disabled=true; el.readOnly=true;
+        if(keepEnabled(el)) return; el.disabled=true; el.readOnly=true;
       });
     }
 
-    // 본인 호실만: trustee/viewer → 이체실행자료(s08) 등 행 필터
-    if(!isAdmin && ACCESS.rooms.length){
-      document.querySelectorAll('#exec-tbody tr').forEach(tr=>{
-        const cells=tr.querySelectorAll('td');
-        let rm=null; cells.forEach(td=>{ const n=parseInt((td.textContent||'').trim(),10); if(rm===null && td.classList.contains('fw-bold')) rm=n; });
-        if(rm!==null && !ACCESS.rooms.includes(rm)) tr.style.display='none';
-      });
-    }
+    // PII 숨김(계좌·소유자명·수탁인명·전화) — 비admin (화면 + PDF 현재시트에 inline 반영)
+    window.__piiHide = (!isAdmin && valid);
+    applyPiiHide(!isAdmin);
+
+    // 이체실행 목록은 '본인 호실'이 아니라 '전체 위탁상태'가 보이도록 행 필터 제거.
+    // (개인정보는 위 applyPiiHide로 가려지므로 전체 분배 현황을 투명하게 열람 가능)
   }
 
   // 렌더/월전환 후 매번 재적용
