@@ -81,8 +81,13 @@ body{background:#f0f2f5;margin:0}
       <select id="selYear" class="form-select form-select-sm" style="width:84px"></select>
       <span class="text-white small">년</span>
       <button class="btn btn-warning btn-sm fw-bold" onclick="openImportModal()" title="정산보고 엑셀을 업로드해서 자동 입력">📥 엑셀 임포트</button>
+      <button class="btn btn-info btn-sm fw-bold" onclick="document.getElementById('cmFile').click()" title="centermmark 회원 데이터(JSON)를 불러옵니다(풀 적재). 실시간 아님.">👥 회원 불러오기</button>
+      <input type="file" id="cmFile" accept=".json" style="display:none" onchange="importCentermmark(this.files[0])">
+      <button class="btn btn-info btn-sm" onclick="applyToCurrentMonth()" title="불러온 회원정보를 '이번 달'에만 반영하고 그 달 상태로 고정">🔄 이 달 회원반영</button>
+      <button class="btn btn-outline-light btn-sm" onclick="exportSettlementJSON()" title="이번 달 09.정산배분을 JSON으로 내보내 centermmark에 반영">📤 정산 내보내기</button>
       <button class="btn btn-outline-light btn-sm" onclick="saveAllData()">💾 저장</button>
       <button class="btn btn-outline-light btn-sm" onclick="resetMonth()">🔄 초기화</button>
+      <span id="cmStatus" class="text-white small"></span>
     </div>
   </div>
 </div>
@@ -525,35 +530,45 @@ const ROOMS = [
   {no:44,fl:19,rm:'1907',nm:'박재운', area:110.36, price:286000000, bank:'농협', acct:'351-0659-9244-23', trustee:'장금만',       type:'수익형', joinFee:1, typeHistory:[]},
 ];
 
-// 호실별 전역 메타 저장소 (joinFee, typeHistory는 localStorage 영구보관)
-function loadRoomMeta(){
-  const raw=localStorage.getItem('kims_room_meta');
-  if(!raw) return;
-  try{
-    const meta=JSON.parse(raw);
-    ROOMS.forEach((r)=>{
-      if(meta[r.rm]){
-        r.joinFee     = meta[r.rm].joinFee     ?? r.joinFee;
-        r.type        = meta[r.rm].type        ?? r.type;
-        r.typeHistory = meta[r.rm].typeHistory ?? [];
-        r.terminated  = meta[r.rm].terminated  ?? false;   // 해지여부
-        r.terminatedDate = meta[r.rm].terminatedDate ?? ''; // 해지일자
-        r.terminatedNote = meta[r.rm].terminatedNote ?? ''; // 해지사유
-      }
-    });
-  }catch(e){}
+// ★ 객실 메타(유형/가입비/해지)는 '월별'로 보관한다 (kims_room_meta_{년}_{월}).
+//   각 월은 그 달에 저장된 상태로 고정(freeze)되며, 실시간으로 바뀌지 않는다.
+//   메타가 없는 새 달은 가장 가까운 과거 달의 상태를 이월(carry-forward)한 뒤 그 달로 고정.
+const ROOMS_BASE = ROOMS.map(r=>({type:r.type, joinFee:r.joinFee}));
+function _metaKey(y,m){ return `kims_room_meta_${y}_${m}`; }
+function _resetRoomMetaToBase(){
+  ROOMS.forEach((r,i)=>{
+    r.type=ROOMS_BASE[i].type; r.joinFee=ROOMS_BASE[i].joinFee;
+    r.typeHistory=[]; r.terminated=false; r.terminatedDate=''; r.terminatedNote='';
+  });
 }
-function saveRoomMeta(){
+function _applyMetaObj(meta){
+  ROOMS.forEach(r=>{ if(meta[r.rm]){
+    r.joinFee=meta[r.rm].joinFee??r.joinFee; r.type=meta[r.rm].type??r.type;
+    r.typeHistory=meta[r.rm].typeHistory??[]; r.terminated=meta[r.rm].terminated??false;
+    r.terminatedDate=meta[r.rm].terminatedDate??''; r.terminatedNote=meta[r.rm].terminatedNote??'';
+  }});
+}
+function loadRoomMeta(y,m){
+  y = (y!=null)?y:CY; m = (m!=null)?m:CM;
+  _resetRoomMetaToBase();                       // 이전 달 값 잔류 방지
+  let raw = localStorage.getItem(_metaKey(y,m));
+  const ownExists = !!raw;
+  if(!raw){                                     // 이월: 가장 가까운 과거 달 → 레거시 전역
+    for(let mm=m-1; mm>=1 && !raw; mm--) raw=localStorage.getItem(_metaKey(y,mm));
+    for(let yy=y-1; yy>=2024 && !raw; yy--) for(let mm=12; mm>=1 && !raw; mm--) raw=localStorage.getItem(_metaKey(yy,mm));
+    if(!raw) raw=localStorage.getItem('kims_room_meta'); // 구버전 전역 메타 호환
+  }
+  if(raw){ try{ _applyMetaObj(JSON.parse(raw)); }catch(e){} }
+  if(!ownExists) saveRoomMeta(y,m);             // 이월분을 이 달 메타로 고정(freeze)
+}
+function saveRoomMeta(y,m){
+  y=(y!=null)?y:CY; m=(m!=null)?m:CM;
   const meta={};
   ROOMS.forEach(r=>{
-    meta[r.rm]={
-      joinFee:r.joinFee, type:r.type, typeHistory:r.typeHistory||[],
-      terminated:r.terminated||false,
-      terminatedDate:r.terminatedDate||'',
-      terminatedNote:r.terminatedNote||'',
-    };
+    meta[r.rm]={ joinFee:r.joinFee, type:r.type, typeHistory:r.typeHistory||[],
+      terminated:r.terminated||false, terminatedDate:r.terminatedDate||'', terminatedNote:r.terminatedNote||'' };
   });
-  localStorage.setItem('kims_room_meta', JSON.stringify(meta));
+  localStorage.setItem(_metaKey(y,m), JSON.stringify(meta));
 }
 
 const OTA_CHANNELS = ['온다판매대행','온다BP','여기어때','야놀자(호텔나우)','야놀자(데일리호텔)','네이버','삼삼엠투','리브애니웨어','야놀자(호텔나우)_하드블럭','야놀자(데일리호텔)_하드블럭','Airbnb','Agoda','Expedia','Booking.com','Trip.com','피터펜','콘도24','야놀자(게하)'];
@@ -755,13 +770,99 @@ function injectSeedData(){
 }
 
 function init(){
-  loadRoomMeta(); // 호실 메타(가입비/유형이력) 먼저 로드
+  // 객실 메타는 월별로 loadMonth() 안에서 로드한다(실시간 전역반영 안 함).
   const ysel = inp('selYear');
   for(let y=2024;y<=2030;y++) ysel.innerHTML+=`<option value="${y}" ${y===2026?'selected':''}>${y}년</option>`;
   ysel.addEventListener('change',()=>{ CY=parseInt(ysel.value); buildMonthNav(); loadMonth(); });
   buildMonthNav();
   buildCostSheets();
   loadMonth();
+}
+
+// ===== centermmark(회원 포털) 연동 — '실시간 아님', 버튼 누를 때만 '현재 월'에 반영 =====
+// centermmark JSON 은 localStorage('kims_centermmark') 풀에 보관(개인정보는 브라우저에만).
+// 반영하면 ROOMS 에 적용 후 그 달의 메타로 저장(freeze)되어, 이후 다른 달/연동변경에 영향받지 않는다.
+function applyCentermmark(){  // 풀 → ROOMS 적용(현재 월). 반환: 반영 실수
+  let data;
+  try { data = JSON.parse(localStorage.getItem('kims_centermmark')||'null'); } catch(e){ data=null; }
+  if(!data || !Array.isArray(data.rooms)) return 0;
+  const byRm = {};
+  data.rooms.forEach(r => { byRm[parseInt(r.rm,10)] = r; });
+  let n=0;
+  ROOMS.forEach(room => {
+    const c = byRm[parseInt(room.rm,10)];
+    if(!c) return;
+    n++;
+    if(c.trustee) room.trustee = c.trustee;
+    if(c.type)    room.type    = c.type;
+    if(typeof c.joinFee==='number') room.joinFee = c.joinFee;
+    if(c.bank)    room.bank = c.bank;
+    if(c.acct)    room.acct = c.acct;            // 더미 계좌 → 실 정산계좌
+    if(typeof c.terminated==='boolean'){ room.terminated = c.terminated; room.terminatedDate = c.terminatedDate||''; }
+    room.cm = { phone:c.phone||'', birth:c.birth||'', acctHolder:c.acctHolder||'',
+                tenantCount:c.tenantCount||0, contractStart:c.contractStart||'', contractEnd:c.contractEnd||'' };
+  });
+  return n;
+}
+
+// 버튼: 저장된 centermmark 회원정보를 '이번 달'에 반영하고 그 달 메타로 고정(freeze)
+function applyToCurrentMonth(){
+  if(!localStorage.getItem('kims_centermmark')){
+    alert('먼저 "👥 회원 불러오기"로 centermmark JSON 파일을 업로드하세요.'); return;
+  }
+  if(!confirm(`${CY}년 ${CM}월에 centermmark 회원정보(위탁자·유형·가입비·실계좌·해지)를 반영하고 이 달 상태로 고정할까요?\n(다른 달에는 영향을 주지 않습니다)`)) return;
+  const n = applyCentermmark();
+  saveRoomMeta(CY,CM);          // 이 달 메타로 freeze
+  if(typeof calcAll==='function') calcAll();
+  if(typeof renderCurrentSheet==='function') renderCurrentSheet();
+  const st=document.getElementById('cmStatus');
+  if(st) st.textContent = `✓ ${CY}.${CM} 회원반영 ${n}실 (고정됨)`;
+  alert(`${CY}년 ${CM}월에 회원정보 ${n}실을 반영·고정했습니다.`);
+}
+
+function importCentermmark(file){
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try{
+      const data = JSON.parse(e.target.result);
+      if(!data.rooms) throw new Error('형식 오류: rooms 없음');
+      data.generatedAt = new Date().toLocaleString('ko-KR');
+      localStorage.setItem('kims_centermmark', JSON.stringify(data));
+      const st=document.getElementById('cmStatus');
+      if(st) st.textContent = `풀 적재 ${data.rooms.length}실 (미반영)`;
+      if(confirm(`centermmark 회원 ${data.rooms.length}실을 불러왔습니다.\n지금 ${CY}년 ${CM}월에 반영(고정)할까요?\n(아니오를 누르면 나중에 "🔄 이 달 회원반영" 버튼으로 반영)`)){
+        applyToCurrentMonth();
+      }
+    }catch(err){ alert('가져오기 실패: '+err.message); }
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+// 이번 달 09.정산배분(최종)을 centermmark 가 가져갈 JSON 으로 내보낸다.
+function exportSettlementJSON(){
+  const m = (typeof getM==='function') ? getM(CY,CM) : null;
+  const monthRooms = (m && Array.isArray(m.rooms)) ? m.rooms : [];
+  const findRoom = rm => monthRooms.find(x => String(x.rm)===String(rm)) || {};
+  const payload = {
+    source:'revenue', year:CY, month:CM,
+    rooms: ROOMS.map(r => {
+      const d = findRoom(r.rm);
+      return {
+        rm:r.rm, trustee:r.trustee, type:r.type, joinFee:r.joinFee,
+        terminated:!!r.terminated, terminatedDate:r.terminatedDate||'',
+        revenue:d.revenue??null, payAmount:d.paid??null, vat:d.vat??null, netPay:d.final??null,
+        paid_yn:d.paid_yn||'', mgmt_pay_yn:d.mgmt_pay_yn||'', payDate:d.payDate||'',
+        // 관리형 투숙객 정보
+        stayType:d.stayType||'', stayStart:d.stayStart||'', stayEnd:d.stayEnd||'', fixedMonthly:d.fixedMonthly||0
+      };
+    })
+  };
+  const blob = new Blob([JSON.stringify(payload,null,2)], {type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`정산배분_${CY}_${String(CM).padStart(2,'0')}.json`;
+  a.click(); URL.revokeObjectURL(a.href);
 }
 
 function buildMonthNav(){
@@ -825,6 +926,9 @@ function loadMonth(){
       DATA[y][m] = JSON.parse(raw);
     } catch(err){ console.warn('loadMonth parse error', err); }
   }
+
+  // ★ 이 달의 객실 메타(유형/가입비/해지)를 로드 → ROOMS 를 이 달 상태로 고정
+  loadRoomMeta(y, m);
 
   const d = getM(y, m);
   const monthName = `${y}년 ${m}월`;
@@ -3508,6 +3612,116 @@ function confirmImport(){
     </div>
   </div>
 </div>
+
+<!-- ===== 권한 제어(members 토큰 검증) ===== -->
+<div id="accessBlock" style="display:none;position:fixed;inset:0;background:#0d1b2a;color:#fff;z-index:9999;align-items:center;justify-content:center;text-align:center;flex-direction:column;font-family:sans-serif">
+  <div style="font-size:42px">🔒</div>
+  <h2 style="margin:12px 0 6px">접근 권한이 필요합니다</h2>
+  <p style="opacity:.8">위탁회원 포털(members)에서 로그인 후 <b>“수익금 정산 내역 보기”</b>로 접속해주세요.</p>
+  <p id="accessHint" style="opacity:.6;font-size:13px"></p>
+</div>
+<div id="roleBadge" style="display:none;position:fixed;right:10px;bottom:10px;z-index:9998;background:#1f6feb;color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;font-family:sans-serif"></div>
+
+<script>
+(function(){
+  // 권한 정보가 없을 때 이동할 곳 (로그인/홈)
+  const NO_ACCESS_REDIRECT = 'https://www.kimshomez.com';
+  const ACCESS = { role:'none', rooms:[] };
+  let accessChecked = false;   // verifyAccess 완료 여부(완료 전엔 리다이렉트 금지)
+  function qp(k){ return new URLSearchParams(location.search).get(k); }
+
+  async function verifyAccess(){
+    const tok = qp('access'), api = qp('api');
+    if(tok && api){
+      try{
+        const r = await fetch(`${api}/api/access/verify?token=${encodeURIComponent(tok)}`);
+        const d = await r.json();
+        if(d && d.valid){ ACCESS.role=d.role; ACCESS.rooms=(d.rooms||[]).map(x=>parseInt(x,10)); }
+      }catch(e){ /* members 미접속/CORS */ }
+    }
+    accessChecked = true;
+  }
+
+  function hideByOnclick(fns, hide){
+    document.querySelectorAll('button, label.btn').forEach(el=>{
+      const oc=(el.getAttribute('onclick')||'');
+      const hasUpload = el.querySelector && el.querySelector('input[type=file]');
+      if(hide && (fns.some(f=>oc.includes(f)) || hasUpload)) el.style.display='none';
+    });
+  }
+
+  function gate(){
+    const role = ACCESS.role;
+    const isAdmin = role==='admin';
+    const canPDF = role==='admin' || role==='trustee';
+    const valid = role && role!=='none';
+
+    const block=document.getElementById('accessBlock');
+    // 권한 확인 전: 잠시 가림(리다이렉트 금지)
+    if(!accessChecked){ if(block) block.style.display='flex'; return; }
+    // 확인 완료 + 권한 없음 → 로그인/홈으로 이동
+    if(!valid){
+      if(block){ block.style.display='flex';
+        const h=document.getElementById('accessHint');
+        if(h) h.textContent = '권한 정보가 없어 이동합니다…';
+      }
+      location.replace(NO_ACCESS_REDIRECT);
+      return;
+    }
+    if(block) block.style.display='none';
+
+    // 역할 배지
+    const rb=document.getElementById('roleBadge');
+    if(rb){ rb.style.display='block';
+      rb.textContent = {admin:'관리자(전체권한)', trustee:'위탁자(조회·PDF)', viewer:'미위탁(조회만)'}[role]||role; }
+
+    // 09.정산배분(최종): admin만
+    document.querySelectorAll('.sheet-btn').forEach(b=>{
+      if(/showSheet\('s09'\)/.test(b.getAttribute('onclick')||'')) b.style.display = isAdmin?'':'none';
+    });
+    // 비admin이 s09 보고 있으면 다른 탭으로
+    if(!isAdmin){ const p=document.getElementById('pane-s09'); if(p&&p.classList.contains('active')){ if(typeof showSheetById==='function'){} } }
+
+    // 저장/편집/업로드/템플릿/엑셀임포트/초기화/centermmark/시트별엑셀/전체엑셀 = admin만
+    hideByOnclick(['saveAllData','resetMonth','openImportModal','importCentermmark',
+      'applyToCurrentMonth','exportSettlementJSON','uploadPMS','uploadCostSheet','uploadMgmt',
+      'downloadTemplate','downloadExcelAll','downloadExcelBySheet','document.getElementById(\'cmFile\')'], !isAdmin);
+
+    // PDF: admin·trustee 만 (viewer 숨김)
+    hideByOnclick(['downloadPDFAll','downloadPDFCurrent'], !canPDF);
+
+    // 읽기전용: 비admin → 입력 비활성화
+    if(!isAdmin){
+      document.querySelectorAll('#app input, input, select, textarea').forEach(el=>{
+        if(el.id==='cmFile') return; el.disabled=true; el.readOnly=true;
+      });
+    }
+
+    // 본인 호실만: trustee/viewer → 이체실행자료(s08) 등 행 필터
+    if(!isAdmin && ACCESS.rooms.length){
+      document.querySelectorAll('#exec-tbody tr').forEach(tr=>{
+        const cells=tr.querySelectorAll('td');
+        let rm=null; cells.forEach(td=>{ const n=parseInt((td.textContent||'').trim(),10); if(rm===null && td.classList.contains('fw-bold')) rm=n; });
+        if(rm!==null && !ACCESS.rooms.includes(rm)) tr.style.display='none';
+      });
+    }
+  }
+
+  // 렌더/월전환 후 매번 재적용
+  ['renderCurrentSheet','loadMonth','showSheet','renderExec','calcSettle'].forEach(fn=>{
+    if(typeof window[fn]==='function'){
+      const orig=window[fn];
+      window[fn]=function(){ const r=orig.apply(this,arguments); try{gate();}catch(e){} return r; };
+    }
+  });
+
+  window.addEventListener('DOMContentLoaded', async ()=>{
+    await verifyAccess();
+    // init(다른 DOMContentLoaded 리스너)이 끝난 뒤 적용되도록 약간 지연
+    setTimeout(gate, 0);
+  });
+})();
+</script>
 
 </body>
 </html>
