@@ -39,6 +39,8 @@ body{background:#f0f2f5;margin:0}
 .data-table tr.total-row td{background:var(--tot);font-weight:700}
 .data-table tr.sub-row td{background:#f5f8ff;font-weight:600}
 .data-table tr.grn-row td{background:var(--grn)}
+#perf-table td{white-space:nowrap}
+#perf-table th:nth-child(2){min-width:240px}
 .sec-header{background:var(--hdr);padding:7px 12px;font-weight:700;border-radius:4px;margin:12px 0 6px;font-size:.9rem;display:flex;align-items:center;justify-content:space-between}
 /* Summary bar */
 .sum-bar{background:#fff;border-bottom:2px solid var(--hdr);padding:8px 16px;display:flex;gap:12px;flex-wrap:wrap}
@@ -84,6 +86,7 @@ body{background:#f0f2f5;margin:0}
       <button class="btn btn-info btn-sm fw-bold" onclick="document.getElementById('cmFile').click()" title="centermmark 회원 데이터(JSON)를 불러옵니다(풀 적재). 실시간 아님.">👥 회원 불러오기</button>
       <input type="file" id="cmFile" accept=".json" style="display:none" onchange="importCentermmark(this.files[0])">
       <button class="btn btn-info btn-sm" onclick="applyToCurrentMonth()" title="불러온 회원정보를 '이번 달'에만 반영하고 그 달 상태로 고정">🔄 이 달 회원반영</button>
+      <button class="btn btn-warning btn-sm fw-bold" onclick="openTypeMgr()" title="객실 타입(A~L)별 수익률 입력 및 객실별 타입 지정">🏷️ 객실타입</button>
       <button class="btn btn-outline-light btn-sm" onclick="exportSettlementJSON()" title="이번 달 09.정산배분을 JSON으로 내보내 centermmark에 반영">📤 정산 내보내기</button>
       <button class="btn btn-outline-light btn-sm" onclick="saveAllData()">💾 저장</button>
       <button class="btn btn-outline-light btn-sm" onclick="resetMonth()">🔄 초기화</button>
@@ -132,6 +135,7 @@ body{background:#f0f2f5;margin:0}
           <span>KIMS HOMES <span id="rpt-title">2026년 6월</span> 성과 보고</span>
           <button class="btn btn-sm btn-outline-secondary" onclick="downloadTemplate('perf')">📥 템플릿</button>
         </div>
+        <div style="overflow-x:auto">
         <table class="data-table" id="perf-table">
           <thead>
             <tr>
@@ -146,6 +150,7 @@ body{background:#f0f2f5;margin:0}
           </thead>
           <tbody id="perf-tbody"></tbody>
         </table>
+        </div>
         <!-- 누적 성과 요약 -->
         <div class="sec-header mt-3" style="font-size:.85rem">📊 월별 누적 성과 비교</div>
         <div id="perf-accum-summary"></div>
@@ -537,16 +542,24 @@ const ROOMS = [
 //   메타가 없는 새 달은 가장 가까운 과거 달의 상태를 이월(carry-forward)한 뒤 그 달로 고정.
 const ROOMS_BASE = ROOMS.map(r=>({type:r.type, joinFee:r.joinFee}));
 function _metaKey(y,m){ return `kims_room_meta_${y}_${m}`; }
+
+// ===== 객실 타입(A~L) 수익금 배분비율 (최초분양가 기준대비, C=100%) =====
+const DEFAULT_TYPE_RATIOS={A:95,B:98,C:100,D:105,E:108,F:89,G:92,H:94,I:99,J:101,K:178,L:176};
+const TYPE_KEYS=['A','B','C','D','E','F','G','H','I','J','K','L'];
+function getTypeRatios(){ try{ return Object.assign({},DEFAULT_TYPE_RATIOS, JSON.parse(localStorage.getItem('kims_room_types')||'{}')); }catch(e){ return Object.assign({},DEFAULT_TYPE_RATIOS); } }
+function saveTypeRatios(obj){ localStorage.setItem('kims_room_types', JSON.stringify(obj)); }
+// 호실의 타입 배분비율(%). 타입 미지정 시 100%(영향 없음)
+function roomTypeRatio(room){ const t=room&&room.roomType; if(!t) return 100; const r=getTypeRatios()[t]; return (r==null)?100:Number(r); }
 function _resetRoomMetaToBase(){
   ROOMS.forEach((r,i)=>{
     r.type=ROOMS_BASE[i].type; r.joinFee=ROOMS_BASE[i].joinFee;
-    r.typeHistory=[]; r.terminated=false; r.terminatedDate=''; r.terminatedNote='';
+    r.roomType=ROOMS_BASE[i].roomType||''; r.typeHistory=[]; r.terminated=false; r.terminatedDate=''; r.terminatedNote='';
   });
 }
 function _applyMetaObj(meta){
   ROOMS.forEach(r=>{ if(meta[r.rm]){
     r.joinFee=meta[r.rm].joinFee??r.joinFee; r.type=meta[r.rm].type??r.type;
-    r.typeHistory=meta[r.rm].typeHistory??[]; r.terminated=meta[r.rm].terminated??false;
+    r.roomType=meta[r.rm].roomType??r.roomType??''; r.typeHistory=meta[r.rm].typeHistory??[]; r.terminated=meta[r.rm].terminated??false;
     r.terminatedDate=meta[r.rm].terminatedDate??''; r.terminatedNote=meta[r.rm].terminatedNote??'';
   }});
 }
@@ -567,7 +580,7 @@ function saveRoomMeta(y,m){
   y=(y!=null)?y:CY; m=(m!=null)?m:CM;
   const meta={};
   ROOMS.forEach(r=>{
-    meta[r.rm]={ joinFee:r.joinFee, type:r.type, typeHistory:r.typeHistory||[],
+    meta[r.rm]={ joinFee:r.joinFee, type:r.type, roomType:r.roomType||'', typeHistory:r.typeHistory||[],
       terminated:r.terminated||false, terminatedDate:r.terminatedDate||'', terminatedNote:r.terminatedNote||'' };
   });
   localStorage.setItem(_metaKey(y,m), JSON.stringify(meta));
@@ -1845,7 +1858,7 @@ function calcSettle(){
 
     // 기준수익금
     var autoBase=0;
-    if(isProfit&&!isTerminated) autoBase=room.joinFee===1?r80amt:r60amt;
+    if(isProfit&&!isTerminated) autoBase=Math.round((room.joinFee===1?r80amt:r60amt)*(roomTypeRatio(room)/100));
     var fixedM=r.fixedMonthly||0;
     var baseAmt=(r.baseOverride!=null)?r.baseOverride:(fixedM>0?fixedM:autoBase);
 
@@ -3642,6 +3655,43 @@ function confirmImport(){
 </div>
 
 <!-- ===== 권한 제어(members 토큰 검증) ===== -->
+<!-- 객실 타입 관리 모달 -->
+<div id="typeMgrOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9990;align-items:flex-start;justify-content:center;padding:30px 16px;overflow:auto;font-family:'Pretendard','Malgun Gothic',sans-serif">
+  <div style="background:#fff;border-radius:14px;max-width:720px;width:100%;padding:24px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+      <h4 style="margin:0;font-weight:800">🏷️ 객실 타입 관리</h4>
+      <button class="btn btn-sm btn-outline-secondary" onclick="closeTypeMgr()">닫기</button>
+    </div>
+    <p class="text-muted" style="font-size:.8rem;margin-bottom:14px">타입(A~L)별 수익금 배분비율(최초분양가 기준대비, C=100%)을 입력하고, 층·호실 범위로 객실에 타입을 지정합니다. 지정된 비율은 09 정산배분의 기준수익금에 반영됩니다.</p>
+
+    <div style="border:1px solid #e1e4e8;border-radius:10px;padding:14px;margin-bottom:16px">
+      <div style="font-weight:700;margin-bottom:10px">① 타입별 수익률(%)</div>
+      <div id="typeRatioGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px"></div>
+      <button class="btn btn-sm btn-primary mt-3" onclick="saveTypeRatiosUI()">수익률 저장</button>
+      <span id="typeRatioMsg" class="text-success ms-2" style="font-size:.8rem"></span>
+    </div>
+
+    <div style="border:1px solid #e1e4e8;border-radius:10px;padding:14px;margin-bottom:16px">
+      <div style="font-weight:700;margin-bottom:10px">② 객실 타입 지정 (층/호실 범위)</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <div><label class="form-label" style="font-size:.75rem;margin:0">층 시작</label><input type="number" id="taFlFrom" class="form-control form-control-sm" style="width:90px" placeholder="예:2"></div>
+        <div><label class="form-label" style="font-size:.75rem;margin:0">층 끝</label><input type="number" id="taFlTo" class="form-control form-control-sm" style="width:90px" placeholder="예:3"></div>
+        <div><label class="form-label" style="font-size:.75rem;margin:0">호실 시작(선택)</label><input type="number" id="taRmFrom" class="form-control form-control-sm" style="width:110px" placeholder="예:205"></div>
+        <div><label class="form-label" style="font-size:.75rem;margin:0">호실 끝(선택)</label><input type="number" id="taRmTo" class="form-control form-control-sm" style="width:110px" placeholder="예:216"></div>
+        <div><label class="form-label" style="font-size:.75rem;margin:0">타입</label>
+          <select id="taType" class="form-select form-select-sm" style="width:90px"></select></div>
+        <button class="btn btn-sm btn-warning fw-bold" onclick="applyTypeAssign()">적용</button>
+      </div>
+      <div id="typeAssignMsg" class="mt-2" style="font-size:.8rem"></div>
+    </div>
+
+    <div style="border:1px solid #e1e4e8;border-radius:10px;padding:14px">
+      <div style="font-weight:700;margin-bottom:10px">현재 지정 현황</div>
+      <div id="typeAssignList" style="max-height:240px;overflow:auto;font-size:.78rem"></div>
+    </div>
+  </div>
+</div>
+
 <div id="accessBlock" style="display:none;position:fixed;inset:0;background:#0d1b2a;color:#fff;z-index:9999;align-items:center;justify-content:center;text-align:center;flex-direction:column;font-family:sans-serif">
   <div style="font-size:42px">🔒</div>
   <h2 style="margin:12px 0 6px">접근 권한이 필요합니다</h2>
@@ -3734,7 +3784,7 @@ function confirmImport(){
     if(!isAdmin){ const p=document.getElementById('pane-s09'); if(p&&p.classList.contains('active')){ if(typeof showSheetById==='function'){} } }
 
     // 저장/편집/업로드/템플릿/엑셀임포트/초기화/centermmark/시트별엑셀/전체엑셀 = admin만
-    hideByOnclick(['saveAllData','resetMonth','openImportModal','importCentermmark',
+    hideByOnclick(['saveAllData','resetMonth','openImportModal','importCentermmark','openTypeMgr',
       'applyToCurrentMonth','exportSettlementJSON','uploadPMS','uploadCostSheet','uploadMgmt',
       'downloadTemplate','downloadExcelAll','downloadExcelBySheet','document.getElementById(\'cmFile\')'], !isAdmin);
 
@@ -3773,5 +3823,61 @@ function confirmImport(){
 })();
 </script>
 
+<script>
+// ===== 객실 타입 관리 UI =====
+function openTypeMgr(){
+  const ratios=getTypeRatios();
+  inp('typeRatioGrid').innerHTML = TYPE_KEYS.map(k=>
+    `<div style="display:flex;align-items:center;gap:5px"><b style="width:18px">${k}</b>`
+    +`<input type="number" id="tr_${k}" class="form-control form-control-sm" style="width:70px" value="${ratios[k]}"><span style="font-size:.8rem">%</span></div>`).join('');
+  inp('taType').innerHTML = TYPE_KEYS.map(k=>`<option value="${k}">${k} (${ratios[k]}%)</option>`).join('');
+  inp('typeRatioMsg').textContent=''; inp('typeAssignMsg').textContent='';
+  renderTypeAssignList();
+  document.getElementById('typeMgrOverlay').style.display='flex';
+}
+function closeTypeMgr(){ document.getElementById('typeMgrOverlay').style.display='none'; }
+function saveTypeRatiosUI(){
+  const obj={}; TYPE_KEYS.forEach(k=>{ const v=parseFloat(inp('tr_'+k)?.value); obj[k]=isNaN(v)?DEFAULT_TYPE_RATIOS[k]:v; });
+  saveTypeRatios(obj);
+  inp('taType').innerHTML = TYPE_KEYS.map(k=>`<option value="${k}">${k} (${obj[k]}%)</option>`).join('');
+  inp('typeRatioMsg').textContent='저장됨 ✓';
+  if(typeof calcAll==='function') calcAll();
+  if(typeof renderCurrentSheet==='function') renderCurrentSheet();
+}
+function applyTypeAssign(){
+  const flF=parseInt(inp('taFlFrom').value), flT=parseInt(inp('taFlTo').value);
+  const rmF=inp('taRmFrom').value!==''?parseInt(inp('taRmFrom').value):null;
+  const rmT=inp('taRmTo').value!==''?parseInt(inp('taRmTo').value):null;
+  const t=inp('taType').value;
+  if(isNaN(flF)||isNaN(flT)){ inp('typeAssignMsg').innerHTML='<span class="text-danger">층 범위를 입력하세요.</span>'; return; }
+  let n=0; const hit=[];
+  ROOMS.forEach(r=>{
+    const fl=parseInt(r.fl), rmn=parseInt(r.rm);
+    if(fl>=flF && fl<=flT && (rmF===null || (rmn>=rmF && rmn<=rmT))){ r.roomType=t; n++; hit.push(r.rm); }
+  });
+  if(n===0){ inp('typeAssignMsg').innerHTML='<span class="text-danger">해당 범위 객실이 없습니다.</span>'; return; }
+  saveRoomMeta(CY,CM);
+  if(typeof calcAll==='function') calcAll();
+  if(typeof renderCurrentSheet==='function') renderCurrentSheet();
+  inp('typeAssignMsg').innerHTML='<span class="text-success">'+n+'개 호실에 타입 '+t+' 지정 ('+hit.join(', ')+')</span>';
+  renderTypeAssignList();
+}
+function renderTypeAssignList(){
+  const ratios=getTypeRatios();
+  const assigned=ROOMS.filter(r=>r.roomType);
+  if(!assigned.length){ inp('typeAssignList').innerHTML='<span class="text-muted">지정된 호실이 없습니다. (타입 미지정 = 100% 적용)</span>'; return; }
+  inp('typeAssignList').innerHTML='<table class="table table-sm" style="font-size:.78rem"><thead><tr><th>호실</th><th>층</th><th>계약유형</th><th>타입</th><th>비율</th><th></th></tr></thead><tbody>'
+    + assigned.map((r,i)=>`<tr><td>${r.rm}</td><td>${r.fl}</td><td>${r.type}</td><td><b>${r.roomType}</b></td><td>${ratios[r.roomType]??100}%</td>`
+      +`<td><button class="btn btn-xs btn-outline-danger" style="font-size:.65rem;padding:0 5px" onclick="clearRoomType('${r.rm}')">해제</button></td></tr>`).join('')
+    + '</tbody></table>';
+}
+function clearRoomType(rm){
+  const r=ROOMS.find(x=>x.rm===rm); if(!r) return; r.roomType='';
+  saveRoomMeta(CY,CM);
+  if(typeof calcAll==='function') calcAll();
+  if(typeof renderCurrentSheet==='function') renderCurrentSheet();
+  renderTypeAssignList();
+}
+</script>
 </body>
 </html>
