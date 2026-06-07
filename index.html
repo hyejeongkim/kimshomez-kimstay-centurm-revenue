@@ -3653,14 +3653,14 @@ function confirmImport(){
 <script>
 (function(){
   // 권한 정보가 없을 때 이동할 곳 (로그인/홈)
-  const NO_ACCESS_REDIRECT = 'https://www.kimshomez.com';
+  const NO_ACCESS_REDIRECT = 'https://www.kimshomez.com/centerm.html';
   const ACCESS = { role:'none', rooms:[] };
 
-  // 로그아웃: *.kimshomez.com 공유 로그인 표식 제거 후 홈으로
+  // 로그아웃: *.kimshomez.com 공유 로그인 표식 제거 후 통합로그인으로
   window.revenueLogout = function(){
     try{ const e='kh_login=; path=/; max-age=0'; document.cookie=e;
       if(location.hostname.endsWith('kimshomez.com')) document.cookie=e+'; domain=.kimshomez.com'; }catch(_){}
-    location.href='https://www.kimshomez.com';
+    location.href='https://www.kimshomez.com/centerm.html';
   };
 
   // PII(계좌·소유자명·수탁인명) 컬럼 숨김 — 04 이체자료/08 이체실행자료
