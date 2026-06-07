@@ -671,6 +671,8 @@ const _today = new Date();
 const CUTOFF_Y = _today.getMonth()===0 ? _today.getFullYear()-1 : _today.getFullYear();
 const CUTOFF_M = _today.getMonth()===0 ? 12 : _today.getMonth(); // getMonth()=현재월-1 = 직전 완료월
 function isMonthAvailable(y,m){ return (y < CUTOFF_Y) || (y===CUTOFF_Y && m<=CUTOFF_M); }
+// 기간 라벨: 1~12=월, 13=1분기(상반기), 14=2분기(하반기)
+function monthLabel(m){ return m<=12 ? m+'월' : (m===13?'1분기':(m===14?'2분기':m+'월')); }
 let CY = CUTOFF_Y, CM = CUTOFF_M;   // 기본 조회월 = 기준월(예: 2026년 5월)
 let DATA = {}; // DATA[year][month] = {ota:{}, field:{}, walkin, costs:{}, rooms:[]}
 
@@ -902,6 +904,24 @@ function buildMonthNav(){
     }
     nav.appendChild(btn);
   });
+  // 분기(반기) 정산 탭: 1분기(상반기 1~6월), 2분기(하반기 7~12월) — 항상 입력 가능
+  [{m:13,label:'1분기'},{m:14,label:'2분기'}].forEach(q=>{
+    const btn=document.createElement('div');
+    btn.className='month-tab'+(q.m===CM?' active':'');
+    btn.style.background = q.m===CM ? '' : '#f3e8ff';
+    btn.style.fontWeight='700';
+    btn.textContent=q.label;
+    btn.onclick=()=>{
+      if(CM===q.m) return;
+      collectCurrentInputs();
+      localStorage.setItem(`kims_${CY}_${CM}`, JSON.stringify(getM(CY,CM)));
+      CM=q.m;
+      document.querySelectorAll('.month-tab').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      loadMonth();
+    };
+    nav.appendChild(btn);
+  });
 }
 
 function saveCurrentThenLoad(){
@@ -945,7 +965,7 @@ function loadMonth(){
   loadRoomMeta(y, m);
 
   const d = getM(y, m);
-  const monthName = `${y}년 ${m}월`;
+  const monthName = `${y}년 ${monthLabel(m)}`;
 
   // 제목 업데이트
   const otaTitleEl = document.getElementById('ota-title');
@@ -1206,7 +1226,7 @@ function renderPerf(){
   const v=calcAll();
   const {totalSales,otaTotal,fieldTotal,walkinExtra,walkinVAT,totalCost,
          fixedSum,varSum,var2Sum,specialSum,profit,baseProfit}=v;
-  const mn=CY+'년 '+CM+'월';
+  const mn=CY+'년 '+monthLabel(CM);
   document.getElementById('rpt-title').textContent=mn;
   document.getElementById('perf-col-this').textContent=mn;
 
@@ -1223,7 +1243,7 @@ function renderPerf(){
   const acEl=document.getElementById('perf-col-accum');
   if(p1el) p1el.textContent=prev1?prev1+'월':'전월';
   if(p2el) p2el.textContent=prev2?prev2+'월':'전전월';
-  if(acEl) acEl.textContent='1~'+CM+'월 누적';
+  if(acEl) acEl.textContent=(CM<=12?'1~'+CM+'월 누적':(CM===13?'상반기 누적':'연간 누적'));
 
   // 전월/전전월 비용 섹션별 합계 (Annex별)
   function getPrevSums(pdata){
@@ -1491,7 +1511,7 @@ function renderPerfAccum(prev1, prev2){
   const col0 = CM+'월(현)';
   const col1 = prev1 ? prev1+'월' : '-';
   const col2 = prev2 ? prev2+'월' : '- -';
-  const col3 = '1~'+CM+'월 누적';
+  const col3 = (CM<=12?'1~'+CM+'월 누적':(CM===13?'상반기 누적':'연간 누적'));
 
   summaryEl.innerHTML =
     '<table class="data-table mt-2" style="font-size:.78rem">'
@@ -1766,7 +1786,7 @@ function calcSettle(){
   const v=calcAll();
   const profit=v.profit, baseProfit=v.baseProfit;
   const d=getM(CY,CM);
-  const mn=CY+'년 '+CM+'월';
+  const mn=CY+'년 '+monthLabel(CM);
   const titleEl=document.getElementById('settle-title');
   if(titleEl) titleEl.textContent=mn+' 정산배분(최종)';
 
@@ -2741,7 +2761,7 @@ var XS=(function(){
 })();
 function downloadExcelAll(){
   saveMonthData();
-  var mn=CY+'년 '+CM+'월';
+  var mn=CY+'년 '+monthLabel(CM);
   var wb=XLSX.utils.book_new();
   var d=getM(CY,CM);
   var v=calcAll();
@@ -2890,7 +2910,7 @@ function downloadExcelBySheet(){
 // ============================================================
 function downloadPDFAll(){
   saveMonthData();
-  var mn=CY+'년 '+CM+'월';
+  var mn=CY+'년 '+monthLabel(CM);
   var d=getM(CY,CM);
   var v=calcAll();
   var g=function(id){return document.getElementById(id);};
@@ -3020,7 +3040,7 @@ ${s08html}
 }
 function downloadPDFCurrent(){
   saveMonthData();
-  var mn=CY+'년 '+CM+'월';
+  var mn=CY+'년 '+monthLabel(CM);
   var activeBtn=[...document.querySelectorAll('.sheet-btn')].find(function(b){return b.classList.contains('active');});
   var sheetId=activeBtn?.getAttribute('onclick')?.match(/showSheet('([^']+)')/)?.[1]||'s01';
   var pane=document.getElementById('pane-'+sheetId);
