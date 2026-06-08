@@ -1103,6 +1103,7 @@ function loadMonth(){
   loadRoomMeta(y, m);
 
   const d = getM(y, m);
+  restoreCostSecs(d); buildCostSheets();   // 월별 동적 비용항목 구조 적용(엑셀 업로드분/기본값)
   const monthName = `${y}년 ${monthLabel(m)}`;
 
   // 제목 업데이트
@@ -1151,7 +1152,7 @@ function buildCostSheets(){
 
 function buildCostSection(containerId, secs, prefix){
   let html='';
-  secs.forEach(sec=>{
+  secs.forEach((sec,si)=>{
     html += `<div class="mb-3">
       <div class="sec-header" style="margin-top:8px">${sec.title}</div>
       <table class="data-table">
@@ -1169,7 +1170,7 @@ function buildCostSection(containerId, secs, prefix){
     });
     html += `</tbody>
         <tfoot><tr class="sub-row"><td colspan="4" class="text-end">TOTAL</td><td class="win" id="sec_${sec.key}">₩0</td><td></td></tr></tfoot>
-      </table></div>`;
+      </table><div style="margin-top:4px"><button class="btn btn-sm btn-outline-secondary" onclick="addCostItem('${prefix}',${si})">+ 항목 추가</button></div></div>`;
   });
   document.getElementById(containerId).innerHTML = html;
 }
@@ -2632,93 +2633,66 @@ function showPMSResult(rawTotals, otaTotals, workinTotal, unmatched){
   document.body.insertAdjacentHTML('beforeend',html);
 }
 
+// 기본 비용항목 구조 스냅샷(엑셀 업로드 안 한 달의 복원용)
+const _DEFAULT_SECS = {
+  fixed: JSON.parse(JSON.stringify(FIXED_SECS)),
+  var: JSON.parse(JSON.stringify(VAR_SECS)),
+  var2: JSON.parse(JSON.stringify(VAR2_SECS)),
+  special: JSON.parse(JSON.stringify(SPECIAL_SECS)),
+};
+function _secArr(type){ return type==='fixed'?FIXED_SECS:type==='var'?VAR_SECS:type==='var2'?VAR2_SECS:SPECIAL_SECS; }
+function _genKey(prefix,si,ii){ return prefix+'_s'+si+'_'+ii; }
+
+// 월별 동적 비용항목 구조 복원: d.costSecs 있으면 그걸로, 없으면 기본값으로 SECS 재설정
+function restoreCostSecs(d){
+  ['fixed','var','var2','special'].forEach(t=>{
+    const src = (d&&d.costSecs&&d.costSecs[t]) ? d.costSecs[t] : _DEFAULT_SECS[t];
+    const arr=_secArr(t);
+    arr.splice(0, arr.length, ...JSON.parse(JSON.stringify(src)));
+  });
+}
+
+// 섹션에 항목 추가(수동)
+function addCostItem(type, si){
+  const arr=_secArr(type); const sec=arr[si]; if(!sec) return;
+  const prefix={fixed:'fx',var:'vr',var2:'v2',special:'sp'}[type]||type;
+  sec.items.push({key:_genKey(prefix,si,sec.items.length+'_'+Date.now().toString(36)), label:'새 항목', amt:0, qty:1, remarks:''});
+  const d=getM(CY,CM); if(!d.costSecs) d.costSecs={}; d.costSecs[type]=JSON.parse(JSON.stringify(arr));
+  buildCostSheets(); populateCostInputs(d); calcAll();
+}
+
+// 비용 엑셀 업로드 → 엑셀의 섹션/항목으로 전면 재구성(동적)
 function uploadCostSheet(input, type){
   const file=input.files[0]; if(!file) return;
+  const prefix={fixed:'fx',var:'vr',var2:'v2',special:'sp'}[type]||type;
+  const num=v=>{ const n=parseFloat(String(v==null?'':v).replace(/,/g,'').trim()); return isNaN(n)?0:n; };
   const reader=new FileReader();
   reader.onload=e=>{
-    const wb=XLSX.read(e.target.result,{type:'array'});
-    const ws=wb.Sheets[wb.SheetNames[0]];
-    // header:1 로 2차원 배열 읽기 (컬럼 위치 기반 파싱)
-    const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
-    const secs = type==='fixed'?FIXED_SECS : type==='var'?VAR_SECS : type==='var2'?VAR2_SECS : SPECIAL_SECS;
-
-    // 헤더 행 찾기: '항목' 또는 'Description' 컬럼 위치 탐색
-    let hdrRow=-1, colLabel=-1, colAmt=-1, colQty=-1, colSec=-1;
-    for(let ri=0;ri<Math.min(5,rows.length);ri++){
-      const r=rows[ri];
-      r.forEach((cell,ci)=>{
-        const s=String(cell).trim();
-        if(s==='항목'||s==='Description') { colLabel=ci; hdrRow=ri; }
-        if(s==='Amount'||s==='금액'||s==='amount') colAmt=ci;
-        if(s==='QTY'||s==='qty'||s==='수량') colQty=ci;
-        if(s==='섹션'||s==='구분') colSec=ci;
+    try{
+      const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      const secs=[]; let cur=null, si=-1;
+      rows.forEach(r=>{
+        const c0=String(r[0]==null?'':r[0]).trim();
+        const c1=String(r[1]==null?'':r[1]).trim();
+        if(/^\d+\.\s*\S/.test(c0)){ si++; cur={title:c0, key:_genKey(prefix,si,'h'), items:[]}; secs.push(cur); return; }
+        if(!cur) return;
+        if(!/^\d+$/.test(c0) || !c1) return;        // 항목 No + Description 있는 행만
+        cur.items.push({key:_genKey(prefix,si,cur.items.length), label:c1, amt:num(r[2]), qty:num(r[3])||1, remarks:String(r[5]==null?'':r[5]).trim()});
       });
-      if(hdrRow>=0) break;
-    }
-
-    // 헤더를 못 찾은 경우 기본 컬럼 위치 추정 (섹션0, 항목1, Amount2, QTY3)
-    if(hdrRow<0){ colSec=0; colLabel=1; colAmt=2; colQty=3; hdrRow=0; }
-    if(colAmt<0) colAmt=2;
-    if(colQty<0) colQty=3;
-
-    // 섹션의 모든 item들을 label → key 맵으로 구성
-    const labelMap={};
-    secs.forEach(sec=>{
-      sec.items.forEach(item=>{
-        // 여러 표현으로 매핑
-        const keys=[
-          item.label,
-          item.label.replace(/\s/g,''),
-          item.label.substring(0,6),
-          item.label.substring(0,4),
-        ];
-        keys.forEach(k=>{ if(k) labelMap[k]=item.key; });
-      });
-    });
-
-    let found=0;
-    const dataRows=rows.slice(hdrRow+1);
-    dataRows.forEach(row=>{
-      const labelCell=String(row[colLabel]||'').trim();
-      const amtRaw=row[colAmt];
-      const qtyRaw=row[colQty];
-      const amt=parseFloat(String(amtRaw).replace(/,/g,''));
-      const qty=parseFloat(String(qtyRaw).replace(/,/g,''));
-
-      if(!labelCell) return;
-
-      // 정확 매칭 우선
-      let matchKey=null;
-      if(labelMap[labelCell]) matchKey=labelMap[labelCell];
-      // 부분 매칭
-      if(!matchKey){
-        for(const [lbl,key] of Object.entries(labelMap)){
-          if(labelCell.includes(lbl)||lbl.includes(labelCell.substring(0,4))){
-            matchKey=key; break;
-          }
-        }
+      if(!secs.length || secs.every(s=>!s.items.length)){
+        toast('비용 항목을 찾지 못했습니다. (섹션 "N.제목" + 항목 No/Description 형식 확인)','warning'); input.value=''; return;
       }
-
-      if(matchKey){
-        if(!isNaN(amt)){
-          const ae=inp('amt_'+matchKey);
-          if(ae){ ae.value=amt; found++; }
-        }
-        if(!isNaN(qty)&&qty>0){
-          const qe=inp('qty_'+matchKey);
-          if(qe) qe.value=qty;
-        }
-        syncQtyTotal(matchKey);
-      }
-    });
-
-    calcAll();
-    if(found>0){
-      toast(`✅ ${found}개 항목 입력 완료!`, 'success');
-    } else {
-      // 파싱 실패 시 raw 데이터 디버그 안내
-      toast(`⚠️ 항목을 찾지 못했습니다. 헤더행=${hdrRow+1}, 항목컬럼=${colLabel+1}, Amount컬럼=${colAmt+1}`, 'warning');
-    }
+      // SECS 전면 교체 + 월 구조 영속
+      const arr=_secArr(type); arr.splice(0, arr.length, ...secs);
+      const d=getM(CY,CM); if(!d.costSecs) d.costSecs={}; d.costSecs[type]=JSON.parse(JSON.stringify(secs));
+      // 값 저장
+      secs.forEach(sec=>sec.items.forEach(it=>{ d.costs[it.key]={amt:it.amt,qty:it.qty}; }));
+      buildCostSheets(); populateCostInputs(d); calcAll(); saveMonthData();
+      const cnt=secs.reduce((s,x)=>s+x.items.length,0);
+      toast(`✅ ${secs.length}개 섹션 / ${cnt}개 항목으로 재구성 완료`,'success');
+    }catch(err){ toast('파싱 실패: '+err.message,'danger'); }
     input.value='';
   };
   reader.readAsArrayBuffer(file);
