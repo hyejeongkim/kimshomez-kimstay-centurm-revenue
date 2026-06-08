@@ -86,6 +86,10 @@ body{background:#f0f2f5;margin:0}
       <button class="btn btn-info btn-sm fw-bold" onclick="document.getElementById('cmFile').click()" title="centermmark 회원 데이터(JSON)를 불러옵니다(풀 적재). 실시간 아님.">👥 회원 불러오기</button>
       <input type="file" id="cmFile" accept=".json" style="display:none" onchange="importCentermmark(this.files[0])">
       <button class="btn btn-info btn-sm" onclick="applyToCurrentMonth()" title="불러온 회원정보를 '이번 달'에만 반영하고 그 달 상태로 고정">🔄 이 달 회원반영</button>
+      <button class="btn btn-outline-info btn-sm" onclick="pullOwners()" title="소유자(이름·은행·계좌)를 마스터에서 실시간 불러와 이 달에 반영·고정">🧑 소유자 불러오기</button>
+      <button class="btn btn-outline-info btn-sm" onclick="pullRooms()" title="객실 유형·가입유형·해지를 마스터에서 불러와 이 달에 반영·고정">🏠 객실정보 불러오기</button>
+      <button class="btn btn-outline-success btn-sm" onclick="pullMgmt()" title="관리비(수익형 산출액)를 불러와 변동비-관리비에 반영">🧾 관리비 불러오기</button>
+      <button class="btn btn-outline-secondary btn-sm" onclick="pullTenants()" title="투숙객 숙박료(장박/단박)를 불러와 이 달에 반영">🛏 투숙객 불러오기</button>
       <button class="btn btn-warning btn-sm fw-bold" onclick="openTypeMgr()" title="객실 타입(A~L)별 수익률 입력 및 객실별 타입 지정">🏷️ 객실타입</button>
       <button class="btn btn-outline-light btn-sm" onclick="exportSettlementJSON()" title="이번 달 09.정산배분을 JSON으로 내보내 centermmark에 반영">📤 정산 내보내기</button>
       <button class="btn btn-success btn-sm fw-bold" onclick="pushSettlementToMembers()" title="이번 달 정산(지급액)을 members로 자동 전송 → 소유자/대리인 안내 발송 준비">🚀 members로 정산전송</button>
@@ -879,6 +883,59 @@ function applyToCurrentMonth(){
   const st=document.getElementById('cmStatus');
   if(st) st.textContent = `✓ ${CY}.${CM} 회원반영 ${n}실 (고정됨)`;
   alert(`${CY}년 ${CM}월에 회원정보 ${n}실을 반영·고정했습니다.`);
+}
+
+// ===== 카테고리별 수동 불러오기(pull) — 확정 전 최신 마스터 반영 =====
+function _pullCtx(){
+  const api=qp('api'), tok=qp('access');
+  if(!api||!tok){ alert('members 연동 정보(api/access)가 없습니다. members 포털에서 연 링크로 접속하세요.'); return null; }
+  return {api, tok};
+}
+function _roomByRm(rm){ return ROOMS.find(r=>parseInt(r.rm,10)===parseInt(rm,10)); }
+function _mk(){ return CY+'-'+String(CM).padStart(2,'0'); }
+async function _pullJSON(cat, extra){
+  const c=_pullCtx(); if(!c) return null;
+  const url=`${c.api}/api/revenue-pull/${cat}?token=${encodeURIComponent(c.tok)}`+(extra||'');
+  const r=await fetch(url,{cache:'no-store'}); const j=await r.json();
+  if(!r.ok) throw new Error(j.detail||('오류 '+r.status));
+  return j;
+}
+async function pullOwners(){
+  if(!confirm(`${CY}.${CM}에 최신 소유자정보(이름·은행·계좌)를 마스터에서 불러와 반영·고정할까요?`)) return;
+  try{ const j=await _pullJSON('owners'); let n=0;
+    j.rooms.forEach(o=>{ const rm=_roomByRm(o.rm); if(rm){ rm.trustee=o.trustee||rm.trustee; rm.bank=o.bank||''; rm.acct=o.acct||''; rm.acctHolder=o.acctHolder||''; n++; } });
+    saveRoomMeta(CY,CM); if(typeof calcAll==='function')calcAll(); if(typeof renderCurrentSheet==='function')renderCurrentSheet();
+    alert(`소유자정보 ${n}실 반영·고정(${CY}.${CM})`);
+  }catch(e){ alert('소유자 불러오기 실패: '+e.message); }
+}
+async function pullRooms(){
+  if(!confirm(`${CY}.${CM}에 최신 객실정보(유형·가입유형·해지)를 불러와 반영·고정할까요?`)) return;
+  try{ const j=await _pullJSON('rooms'); let n=0;
+    j.rooms.forEach(o=>{ const rm=_roomByRm(o.rm); if(rm){ rm.type=o.type||rm.type; rm.joinFee=o.joinFee; rm.terminated=!!o.terminated; rm.terminatedDate=o.terminatedDate||''; n++; } });
+    saveRoomMeta(CY,CM); if(typeof calcAll==='function')calcAll(); if(typeof renderCurrentSheet==='function')renderCurrentSheet();
+    alert(`객실정보 ${n}실 반영·고정(${CY}.${CM})`);
+  }catch(e){ alert('객실정보 불러오기 실패: '+e.message); }
+}
+async function pullMgmt(){
+  const mk=_mk();
+  if(!confirm(`${mk} 관리비(수익형 산출액 합계)를 불러와 변동비-관리비에 반영할까요?`)) return;
+  try{ const j=await _pullJSON('mgmt','&month='+mk);
+    if(!j.exists){ alert(`${mk} 관리비 자료가 없습니다(관리단 업로드 필요).`); return; }
+    const d=getM(CY,CM); if(!d.costs.mgmt1) d.costs.mgmt1={amt:0,qty:1};
+    d.costs.mgmt1.amt=j.su_total; d.costs.mgmt1.qty=1;
+    if(typeof populateCostInputs==='function') populateCostInputs(d);
+    if(typeof calcAll==='function')calcAll(); saveMonthData();
+    alert(`관리비(수익형 산출액 합) ${Number(j.su_total).toLocaleString()}원 반영(${mk})`);
+  }catch(e){ alert('관리비 불러오기 실패: '+e.message); }
+}
+async function pullTenants(){
+  if(!confirm(`${CY}.${CM}에 최신 투숙객 숙박료(장박/단박)를 불러올까요?`)) return;
+  try{ const j=await _pullJSON('tenants'); const d=getM(CY,CM);
+    const byRm={}; (d.rooms||[]).forEach(x=>byRm[parseInt(x.rm,10)]=x);
+    let n=0; j.rooms.forEach(o=>{ const x=byRm[parseInt(o.rm,10)]; if(x){ x.fixedMonthly=o.fixedMonthly||0; x.stayType=o.stayType||x.stayType; n++; } });
+    saveMonthData(); if(typeof calcAll==='function')calcAll(); if(typeof renderCurrentSheet==='function')renderCurrentSheet();
+    alert(`투숙객 숙박료 ${n}실 반영(${CY}.${CM})`);
+  }catch(e){ alert('투숙객 불러오기 실패: '+e.message); }
 }
 
 function importCentermmark(file){
@@ -3887,6 +3944,7 @@ function confirmImport(){
     // 저장/편집/업로드/템플릿/엑셀임포트/초기화/centermmark/시트별엑셀/전체엑셀 = admin만
     hideByOnclick(['saveAllData','resetMonth','openImportModal','importCentermmark','openTypeMgr',
       'applyToCurrentMonth','exportSettlementJSON','pushSettlementToMembers','uploadPMS','uploadCostSheet','uploadMgmt',
+      'pullOwners','pullRooms','pullMgmt','pullTenants',
       'downloadTemplate','downloadExcelAll','downloadExcelBySheet','document.getElementById(\'cmFile\')'], !isAdmin);
 
     // PDF: admin·trustee 만 (viewer 숨김)
