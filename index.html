@@ -187,7 +187,9 @@ body{background:#f0f2f5;margin:0}
       </table>
     </div>
     <!-- 현장매출 -->
-    <div class="sec-header mt-3">현장매출 (현금/카드/계좌이체)</div>
+    <div class="sec-header mt-3">현장매출 (현금/카드/계좌이체)
+      <button class="btn btn-sm btn-outline-success" style="margin-left:8px;padding:2px 10px;font-size:12px" onclick="calcCashRevenue()" title="수익형 장/단박 숙박료(부가세포함)÷1.1×80%를 현금매출_세금계산서에 자동 입력">💵 현금매출 계산입력</button>
+    </div>
     <table class="data-table">
       <thead><tr><th>구분</th><th class="win">금액</th><th>비고</th></tr></thead>
       <tbody id="field-tbody"></tbody>
@@ -935,6 +937,23 @@ async function pullMgmt(){
     if(typeof calcAll==='function')calcAll(); saveMonthData();
     alert(`관리비(수익형 산출액 합) ${Number(j.su_total).toLocaleString()}원 반영(${mk})`);
   }catch(e){ alert('관리비 불러오기 실패: '+e.message); }
+}
+async function calcCashRevenue(){
+  if(!confirm(`${CY}.${CM} 수익형 장/단박 숙박료로 현금매출_세금계산서를 계산해 입력할까요?\n(숙박료(부가세포함) ÷ 1.1 × 80%)`)) return;
+  try{
+    const j=await _pullJSON('master','&month='+_mk());
+    let cash=0, fee=0, cnt=0;
+    j.rooms.forEach(o=>{
+      if(o.type==='수익형' && (o.stay_kind==='장기'||o.stay_kind==='단기') && (o.monthly_rent||0)>0){
+        const supply=(o.monthly_rent)/1.1; cash+=Math.round(supply*0.8); fee+=Math.round(supply*0.2); cnt++;
+      }
+    });
+    const d=getM(CY,CM); d.field['현금매출_세금계산서']=cash;
+    const el=inp('field_'+'현금매출_세금계산서'.replace(/[^a-zA-Z0-9가-힣]/g,'_'));
+    if(el) el.value=cash;
+    if(typeof calcAll==='function')calcAll(); saveMonthData();
+    alert(`현금매출_세금계산서 ${cash.toLocaleString()}원 입력 완료 (수익형 장/단박 ${cnt}실)\n운영수수료(20%) ${fee.toLocaleString()}원은 별도`);
+  }catch(e){ alert('현금매출 계산 실패: '+e.message); }
 }
 async function pullMaster(){
   if(!confirm(`${CY}.${CM}에 객실마스터(타입·판매가) + 청소대상 객실을 불러올까요?`)) return;
