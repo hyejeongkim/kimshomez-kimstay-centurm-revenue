@@ -3850,11 +3850,19 @@ function confirmImport(){
   </div>
 </div>
 
-<div id="accessBlock" style="display:none;position:fixed;inset:0;background:#0d1b2a;color:#fff;z-index:9999;align-items:center;justify-content:center;text-align:center;flex-direction:column;font-family:sans-serif">
-  <div style="font-size:42px">🔒</div>
-  <h2 style="margin:12px 0 6px">접근 권한이 필요합니다</h2>
-  <p style="opacity:.8">위탁회원 포털(members)에서 로그인 후 <b>“수익금 정산 내역 보기”</b>로 접속해주세요.</p>
-  <p id="accessHint" style="opacity:.6;font-size:13px"></p>
+<div id="accessBlock" style="display:none;position:fixed;inset:0;background:#eef2f8;color:#24292e;z-index:9999;align-items:center;justify-content:center;flex-direction:column;font-family:'Malgun Gothic',sans-serif;padding:24px;overflow:auto">
+  <div style="background:#fff;border:1px solid #e1e4e8;border-radius:16px;padding:30px 24px;max-width:420px;width:100%;box-shadow:0 4px 20px rgba(0,0,0,.06)">
+    <a href="https://kimshomez.com" style="display:block;text-align:center;background:linear-gradient(135deg,#1f6feb,#4f93f7);color:#fff;border-radius:12px;padding:14px;font-weight:700;font-size:15px;text-decoration:none;margin-bottom:18px">🏠 킴스홈즈 홈페이지 →</a>
+    <img src="https://members.kimshomez.com/static/brand/ksy.jpg" alt="센텀마크킴스테이양양" style="width:90px;height:90px;border-radius:14px;object-fit:contain;border:1px solid #eef0f3;display:block;margin:0 auto"/>
+    <h1 style="text-align:center;font-size:20px;margin:12px 0 4px">센텀마크킴스테이양양</h1>
+    <p style="text-align:center;color:#64748b;font-size:13px;margin:0 0 18px">수익금 정산 포털</p>
+    <a href="https://members.kimshomez.com" style="display:block;text-align:center;background:#1f6feb;color:#fff;border-radius:10px;padding:14px;font-weight:700;text-decoration:none;margin-bottom:10px">위탁회원 로그인 →</a>
+    <a href="https://members.kimshomez.com/admin" style="display:block;text-align:center;background:#fff;color:#1f6feb;border:1px solid #1f6feb;border-radius:10px;padding:13px;font-weight:700;text-decoration:none">관리자 로그인 →</a>
+    <div style="margin-top:18px;font-size:12.5px;color:#64748b;background:#f0f4f9;border-radius:10px;padding:14px;line-height:1.7">
+      <b style="color:#24292e">안내</b><br/>위탁회원 포털에서 로그인 후 <b>“수익금 정산 내역 보기”</b>로 접속하면 자동 입장됩니다.<br/>관리자는 통합 관리자 로그인으로 입장하세요.<br/>문의 <b>010-2220-5971</b> / hyejng.kim@kimshomez.com
+    </div>
+    <p id="accessHint" style="text-align:center;opacity:.6;font-size:12px;margin-top:10px"></p>
+  </div>
 </div>
 <div id="roleBadge" style="display:none;position:fixed;right:10px;bottom:10px;z-index:9998;background:#1f6feb;color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:700;font-family:sans-serif"></div>
 
@@ -3920,13 +3928,14 @@ function confirmImport(){
     if(!accessChecked){ if(block) block.style.display='flex'; return; }
     // 확인 완료 + 권한 없음 → 로그인/홈으로 이동
     if(!valid){
+      // 권한 없음 → 통합페이지로 튕기지 않고 로그인 게이트 화면 표시
       if(block){ block.style.display='flex';
         const h=document.getElementById('accessHint');
-        if(h) h.textContent = '권한 정보가 없어 이동합니다…';
+        if(h) h.textContent = '';
       }
-      location.replace(NO_ACCESS_REDIRECT);
       return;
     }
+    if(block) block.style.display='none';
     if(block) block.style.display='none';
 
     // 역할 배지
