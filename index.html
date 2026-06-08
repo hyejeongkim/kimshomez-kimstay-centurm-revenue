@@ -793,8 +793,9 @@ function injectSeedData(){
 
   // ─ 2026년 5월 (확정 정산: 매출 17,066,399 / 비용 18,280,108 / 영업이익 -1,213,709)
   (function(){
-    var KEY='kims_2026_5';
-    if(localStorage.getItem(KEY)) return; // 이미 있으면 스킵
+    var KEY='kims_2026_5', VKEY='kims_seed_2026_5_v1';
+    if(localStorage.getItem(VKEY)) return; // 1회만 강제주입(이후 수동편집 보존)
+    localStorage.setItem(VKEY,'1');
     var ch={}; OTA_CHANNELS.forEach(function(c){ ch[c]={판매금액:0,에누리액:0,채널수수료율:15,비고:''}; });
     ch['여기어때']={판매금액:9829446,에누리액:0,채널수수료율:15,비고:'OTA채널 합산(상세는 PMS)'};
     var d={
