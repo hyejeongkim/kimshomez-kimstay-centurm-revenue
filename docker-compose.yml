@@ -1,0 +1,15 @@
+services:
+  revenue:
+    build: .
+    container_name: revenue-master
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8090:8090"
+    environment:
+      - DATA_DIR=/data
+      - REVENUE_ADMIN_KEY=${REVENUE_ADMIN_KEY:-rev-41625fb9d308}
+    volumes:
+      - revenue-data:/data
+
+volumes:
+  revenue-data:
