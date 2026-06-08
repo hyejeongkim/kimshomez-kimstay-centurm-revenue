@@ -1039,6 +1039,9 @@ function loadMonth(){
     } catch(err){ console.warn('loadMonth parse error', err); }
   }
 
+  // ★ 서버(마스터) 동기화 — 백엔드 가동 시 서버 데이터로 갱신·재렌더(미가동 시 무시)
+  pullMonthFromServer(y, m);
+
   // ★ 이 달의 객실 메타(유형/가입비/해지)를 로드 → ROOMS 를 이 달 상태로 고정
   loadRoomMeta(y, m);
 
@@ -2151,9 +2154,42 @@ function updateRoomExec(i,field,val){
 // ============================================================
 // SAVE / LOAD
 // ============================================================
+// ===== revenue 백엔드(SSOT) 동기화 =====
+// 백엔드가 index.html 을 서빙하면 같은 오리진의 /api/* 가 마스터. GitHub Pages 등 백엔드 미가동 시
+// fetch 가 실패/404 → 조용히 무시하고 localStorage 로 동작(현행 유지). 호스팅 전환 시 자동 동작.
+const REV_API = (location.origin && /^https?:/.test(location.origin)) ? location.origin : '';
+let _revSynced = {};
+function revAdminKey(){ return localStorage.getItem('kims_rev_admin_key')||''; }
+function setRevAdminKey(){ const k=prompt('revenue 서버 관리자 키 입력(정산 저장용):', revAdminKey()); if(k!==null){ localStorage.setItem('kims_rev_admin_key', k.trim()); alert('관리자 키 저장됨'); } }
+async function pullMonthFromServer(y,m){
+  if(!REV_API) return;
+  const mk = y+'-'+String(m).padStart(2,'0');
+  if(_revSynced[mk]) return; _revSynced[mk]=1;          // 세션당 1회(재렌더 루프 방지)
+  try{
+    const r = await fetch(REV_API+'/api/month/'+mk, {cache:'no-store'});
+    if(!r.ok) return;
+    const j = await r.json();
+    if(j && j.exists && j.data){
+      localStorage.setItem('kims_'+y+'_'+m, JSON.stringify(j.data));  // 서버=마스터
+      if(CY===y && CM===m){ if(!DATA[y])DATA[y]={}; DATA[y][m]=j.data; loadMonth(); if(typeof calcAll==='function')calcAll(); }
+    }
+  }catch(e){ /* 백엔드 미가동 → localStorage 사용 */ }
+}
+async function pushMonthToServer(y,m){
+  if(!REV_API) return;
+  const key = revAdminKey(); if(!key) return;            // 관리자 키 없으면 서버 저장 생략
+  const mk = y+'-'+String(m).padStart(2,'0');
+  try{
+    await fetch(REV_API+'/api/month/'+mk, {method:'PUT',
+      headers:{'Content-Type':'application/json','X-Admin-Key':key},
+      body: JSON.stringify({data: getM(y,m)})});
+  }catch(e){ /* 무시 */ }
+}
+
 function saveMonthData(){
   collectCurrentInputs();
   localStorage.setItem(`kims_${CY}_${CM}`, JSON.stringify(getM(CY,CM)));
+  pushMonthToServer(CY, CM);   // 서버(마스터) 동기화 — 관리자 키 있을 때
 }
 
 // ── 화면 input → DATA 객체로 수집 (저장과 분리)
