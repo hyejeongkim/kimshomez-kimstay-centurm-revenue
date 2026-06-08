@@ -3868,8 +3868,8 @@ function confirmImport(){
 
 <script>
 (function(){
-  // 권한 정보가 없을 때 이동할 곳 (로그인/홈)
-  const NO_ACCESS_REDIRECT = 'https://www.kimshomez.com/centerm.html';
+  // 권한 정보가 없을 때 이동할 곳 = members 로그인 (통합로그인 아님)
+  const NO_ACCESS_REDIRECT = 'https://members.kimshomez.com/';
   const ACCESS = { role:'none', rooms:[] };
 
   // 로그아웃: *.kimshomez.com 공유 로그인 표식 제거 후 통합로그인으로
@@ -3928,11 +3928,12 @@ function confirmImport(){
     if(!accessChecked){ if(block) block.style.display='flex'; return; }
     // 확인 완료 + 권한 없음 → 로그인/홈으로 이동
     if(!valid){
-      // 권한 없음 → 통합페이지로 튕기지 않고 로그인 게이트 화면 표시
+      // 권한 없음 → members 로그인 화면으로 이동(통합로그인 X)
       if(block){ block.style.display='flex';
         const h=document.getElementById('accessHint');
-        if(h) h.textContent = '';
+        if(h) h.textContent = 'members 로그인 화면으로 이동합니다…';
       }
+      location.replace(NO_ACCESS_REDIRECT);
       return;
     }
     if(block) block.style.display='none';
