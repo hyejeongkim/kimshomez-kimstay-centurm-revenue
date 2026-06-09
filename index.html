@@ -115,7 +115,7 @@ body{background:#f0f2f5;margin:0}
   <div class="sum-box"><div class="sum-label">영업이익 (A-B)</div><div class="sum-val" id="sb-profit">₩0</div></div>
   <div class="sum-box"><div class="sum-label">수익형 호실</div><div class="sum-val text-info" id="sb-prooms">0실</div></div>
   <div class="sum-box"><div class="sum-label">관리형 호실</div><div class="sum-val text-info" id="sb-mrooms">0실</div></div>
-  <div class="sum-box"><div class="sum-label">수익형 평균지급금<small style="color:#888">(80%)</small></div><div class="sum-val text-success" id="sb-pavg">₩0</div></div>
+  <div class="sum-box"><div class="sum-label">수익형 평균지급금<small style="color:#888">(기준수익금)</small></div><div class="sum-val text-success" id="sb-pavg">₩0</div></div>
   <div class="sum-box"><div class="sum-label">관리형 평균지급금<small style="color:#888">(기준수익금)</small></div><div class="sum-val text-success" id="sb-mavg">₩0</div></div>
 </div>
 
@@ -144,10 +144,10 @@ body{background:#f0f2f5;margin:0}
           <button class="btn btn-sm btn-outline-secondary" onclick="downloadTemplate('perf')">📥 템플릿</button>
         </div>
         <style>
-          #perf-table{font-size:.76rem;table-layout:fixed;width:auto}
-          #perf-table th,#perf-table td{padding:2px 5px}
-          #perf-table td:nth-child(1),#perf-table td:nth-child(2){white-space:normal;line-height:1.15;word-break:keep-all}
-          #perf-table .win{text-align:right;font-variant-numeric:tabular-nums}
+          #perf-table,#perf-accum-table{font-size:.76rem;table-layout:fixed;width:auto}
+          #perf-table th,#perf-table td,#perf-accum-table th,#perf-accum-table td{padding:2px 5px}
+          #perf-table td:nth-child(1),#perf-table td:nth-child(2),#perf-accum-table td:nth-child(1){white-space:normal;line-height:1.15;word-break:keep-all}
+          #perf-table .win,#perf-accum-table .win{text-align:right;font-variant-numeric:tabular-nums}
         </style>
         <div style="overflow-x:auto">
         <table class="data-table" id="perf-table">
@@ -1348,18 +1348,18 @@ function updateOTATotals(){
   return {sumSale,sumEnu,sumSales,sumFee,sumIncome};
 }
 
-// 헤더 요약: 수익형/관리형 호실수 + 평균지급금(수익형=호실당기준수익×80%, 관리형=기준수익금 평균)
+// 헤더 요약: 수익형/관리형 호실수 + 평균지급금(각 유형 실제 호실별 기준수익금 평균)
 function updateHeaderStats(baseProfit){
   var d=getM(CY,CM);
-  var pCnt=0, mCnt=0, mBaseSum=0;
+  var pCnt=0, pBaseSum=0, mCnt=0, mBaseSum=0;
   ROOMS.forEach(function(room,i){
     if(excludeRoomFromSettle(room)) return;          // 자가사용/사전해지 제외
-    var r=(d.rooms&&d.rooms[i])||{};
-    if(room.type==='수익형'){ pCnt++; }
-    else if(room.type==='관리형'){ mCnt++; mBaseSum+=(r.revenue||0); }   // r.revenue = 기준수익금(calcSettle 저장)
+    var r=(d.rooms&&d.rooms[i])||{};                 // r.revenue = 기준수익금(calcSettle 저장, 60%·적용비율·면책 반영)
+    if(room.type==='수익형'){ pCnt++; pBaseSum+=(r.revenue||0); }
+    else if(room.type==='관리형'){ mCnt++; mBaseSum+=(r.revenue||0); }
   });
-  var pAvg=(baseProfit!=null)?Math.round(baseProfit*0.8):0;   // 수익형 80% 지급금 기준
-  var mAvg=mCnt>0?Math.round(mBaseSum/mCnt):0;                // 관리형 기준수익금 평균
+  var pAvg=pCnt>0?Math.round(pBaseSum/pCnt):0;   // 수익형 기준수익금 평균(실호실)
+  var mAvg=mCnt>0?Math.round(mBaseSum/mCnt):0;   // 관리형 기준수익금 평균(실호실)
   var set=function(id,v){ var el=inp(id); if(el) el.textContent=v; };
   set('sb-prooms', pCnt+'실');
   set('sb-mrooms', mCnt+'실');
@@ -1498,12 +1498,13 @@ function monthCostMap(m){
     });});
   } else {
     var raw=localStorage.getItem('kims_'+CY+'_'+m);
-    if(raw){ try{ var d=JSON.parse(raw); if(d.costs){
+    if(!raw) return null;                       // 데이터 없는 월 → null(빈 컬럼)
+    try{ var d=JSON.parse(raw); if(d.costs){
       ALL.forEach(function(sec){ sec.items.forEach(function(it){
         var c=d.costs[it.key];
         map[it.key]= (c&&c.applied!==false)?Math.round((c.amt||0)*(c.qty||1)):0;
       });});
-    }}catch(e){} }
+    } }catch(e){ return null; }
   }
   return map;
 }
@@ -1537,16 +1538,18 @@ function renderPerf(){
   const mn=CY+'년 '+monthLabel(CM);
   document.getElementById('rpt-title').textContent=mn;
 
-  // 당월 ~ 1월 컬럼(내림차순: 5월,4월,3월,2월,1월)
-  const months=[]; for(let m=Math.min(CM,12);m>=1;m--) months.push(m);
+  // 분기(상/하반기) + 월 컬럼: [1분기수익(상반기 합계)] 6월 5월 4월 3월 2월 1월
+  const isH1=CM<=6;
+  const qFirst=isH1?1:7, qLast=isH1?6:12, qLabel=isH1?'1분기':'2분기';
+  const months=[]; for(let m=qLast;m>=qFirst;m--) months.push(m);
 
   // 미리 월별 데이터 준비
   const cmap={}, summ={}, stat={};
   months.forEach(function(m){ cmap[m]=monthCostMap(m); summ[m]=monthSummary(m); stat[m]=monthStats(m); });
 
-  function secTotal(m,sec){ var mp=cmap[m]||{}, t=0; sec.items.forEach(function(it){ t+=(mp[it.key]||0); }); return t; }
+  function secTotal(m,sec){ var mp=cmap[m]; if(!mp) return null; var t=0; sec.items.forEach(function(it){ t+=(mp[it.key]||0); }); return t; }
 
-  // 당월 셀 스타일(빨간 테두리) + 값셀
+  // 당월(빨강) 셀 스타일
   function cellStyle(m,opt){
     opt=opt||{}; var st='';
     if(m===CM){ st+='border-left:2px solid #e53935;border-right:2px solid #e53935;background:#fff5f5;'; if(opt.last) st+='border-bottom:2px solid #e53935;'; }
@@ -1561,18 +1564,26 @@ function renderPerf(){
   }
   function cellCnt(m,n,opt){
     opt=opt||{};
-    var disp=(n==null)?'-':('<strong>'+n+'</strong>실');
+    var disp=(n==null)?'':('<strong>'+n+'</strong>실');
     return '<td class="win text-center" style="'+cellStyle(m,opt)+'">'+disp+'</td>';
   }
+  // 1분기(누적) 셀 — 파란 테두리
+  function qStyle(opt){ opt=opt||{}; var st='border-left:2px solid #1565c0;border-right:2px solid #1565c0;background:#eef4fc;'; if(opt.last) st+='border-bottom:2px solid #1565c0;'; if(opt.bold) st+='font-weight:bold;'; if(opt.extra) st+=opt.extra; return st; }
+  function qCell(val,opt){ opt=opt||{}; var disp=(val==null)?'':(val===0?'<span style="color:#9ab">–</span>':Math.round(val).toLocaleString()); return '<td class="win" style="'+qStyle(opt)+'">'+disp+'</td>'; }
+  function qCellCnt(n,opt){ opt=opt||{}; var disp=(n==null)?'':('<strong>'+n+'</strong>실'); return '<td class="win text-center" style="'+qStyle(opt)+'">'+disp+'</td>'; }
+  // 집계 헬퍼
+  function sumOf(fn){ var s=null; months.forEach(function(m){ var x=fn(m); if(x!=null) s=(s||0)+x; }); return s; }
+  function avgOf(fn){ var arr=[]; months.forEach(function(m){ var x=fn(m); if(x!=null) arr.push(x); }); return arr.length?Math.round(arr.reduce(function(a,b){return a+b;},0)/arr.length):null; }
 
-  // 헤더(당월~1월)
-  let head='<tr><th style="width:64px">구분</th><th style="width:130px;max-width:130px">항목</th>';
+  // 헤더: 구분 | 항목 | [1분기수익] | 6월…1월 | 비고
+  let head='<tr><th style="width:58px">구분</th><th style="width:122px;max-width:122px">항목</th>';
+  head+='<th class="win" style="width:86px;border:2px solid #1565c0;border-bottom:none;background:#eef4fc;color:#0d47a1">'+qLabel+'수익<br><span style="font-size:.6rem;font-weight:normal">('+qFirst+'~'+qLast+'월 합계)</span></th>';
   months.forEach(function(m){
     var cur=(m===CM);
-    head+='<th class="win" style="width:80px;'+(cur?'border:2px solid #e53935;border-bottom:none;background:#fff5f5;color:#c62828;':'')+'">'
-      +m+'월'+(cur?'<br><span style="font-size:.62rem">(당월)</span>':'')+'</th>';
+    head+='<th class="win" style="width:72px;'+(cur?'border:2px solid #e53935;border-bottom:none;background:#fff5f5;color:#c62828;':'')+'">'
+      +m+'월'+(cur?'<br><span style="font-size:.6rem">(당월)</span>':'')+'</th>';
   });
-  head+='<th style="width:90px">비고</th></tr>';
+  head+='<th style="width:82px">비고</th></tr>';
   document.querySelector('#perf-table thead').innerHTML=head;
 
   // Annex 비용 블록(섹션 단위 행 + 소계)
@@ -1581,10 +1592,13 @@ function renderPerf(){
     secs.forEach(function(sec,si){
       out+='<tr>';
       if(si===0) out+='<td rowspan="'+secs.length+'">'+label+'</td>';
-      out+='<td>'+sec.title+'</td>'+months.map(function(m){return cell(m,secTotal(m,sec));}).join('')+'<td></td></tr>';
+      out+='<td>'+sec.title+'</td>'
+        +qCell(sumOf(function(m){return secTotal(m,sec);}))
+        +months.map(function(m){return cell(m,secTotal(m,sec));}).join('')+'<td></td></tr>';
     });
     out+='<tr class="total-row"><td colspan="2">'+subLabel+'</td>'
-      +months.map(function(m){ var t=0; secs.forEach(function(sec){t+=secTotal(m,sec);}); return cell(m,t,{bold:true}); }).join('')
+      +qCell(sumOf(function(m){var mp=cmap[m]; if(!mp) return null; var t=0; secs.forEach(function(sec){t+=secTotal(m,sec);}); return t;}),{bold:true})
+      +months.map(function(m){ var mp=cmap[m]; if(!mp) return cell(m,null); var t=0; secs.forEach(function(sec){t+=secTotal(m,sec);}); return cell(m,t,{bold:true}); }).join('')
       +'<td></td></tr>';
     return out;
   }
@@ -1592,12 +1606,15 @@ function renderPerf(){
   let rows='';
 
   // ── 매출
+  var fOta=function(m){return summ[m]?summ[m].otaT:null;};
+  var fFld=function(m){return summ[m]?summ[m].fieldNet:null;};
+  var fSal=function(m){return summ[m]?summ[m].sales:null;};
   rows+='<tr><td rowspan="2">매출</td><td>OTA 매출</td>'
-    +months.map(function(m){return cell(m, summ[m]?summ[m].otaT:null);}).join('')+'<td></td></tr>';
+    +qCell(sumOf(fOta))+months.map(function(m){return cell(m,fOta(m));}).join('')+'<td></td></tr>';
   rows+='<tr><td>현장매출 <small style="color:#aaa">(현금·카드·이체)</small></td>'
-    +months.map(function(m){return cell(m, summ[m]?summ[m].fieldNet:null);}).join('')+'<td></td></tr>';
+    +qCell(sumOf(fFld))+months.map(function(m){return cell(m,fFld(m));}).join('')+'<td></td></tr>';
   rows+='<tr class="total-row"><td colspan="2">매출총액 (A)</td>'
-    +months.map(function(m){return cell(m, summ[m]?summ[m].sales:null,{bold:true});}).join('')+'<td></td></tr>';
+    +qCell(sumOf(fSal),{bold:true})+months.map(function(m){return cell(m,fSal(m),{bold:true});}).join('')+'<td></td></tr>';
 
   // ── 고정비/변동비/특수비
   rows+=annexBlock('Annex 1<br>고정비', FIXED_SECS, '고정비 소계(a)');
@@ -1605,27 +1622,33 @@ function renderPerf(){
   rows+=annexBlock('Annex 3<br>특수비', SPECIAL_SECS, '특수비 소계(c)');
 
   // ── 비용총액/영업이익
+  var fCost=function(m){return summ[m]?summ[m].cost:null;};
+  var fProf=function(m){return summ[m]?summ[m].profit:null;};
   rows+='<tr class="total-row"><td colspan="2">비용총액 (B) = a+b+c</td>'
-    +months.map(function(m){return cell(m, summ[m]?summ[m].cost:null,{bold:true});}).join('')+'<td></td></tr>';
+    +qCell(sumOf(fCost),{bold:true})+months.map(function(m){return cell(m,fCost(m),{bold:true});}).join('')+'<td></td></tr>';
+  var profAgg=sumOf(fProf);
   rows+='<tr class="grn-row"><td colspan="2"><strong>영업이익 (A-B)</strong></td>'
-    +months.map(function(m){ var p=summ[m]?summ[m].profit:null;
-        var ex=(p!=null)?(p>=0?'color:#198754;':'color:#dc3545;'):'';
-        return cell(m,p,{bold:true,extra:ex}); }).join('')+'<td></td></tr>';
+    +qCell(profAgg,{bold:true,extra:(profAgg!=null?(profAgg>=0?'color:#198754;':'color:#dc3545;'):'')})
+    +months.map(function(m){ var p=fProf(m); var ex=(p!=null)?(p>=0?'color:#198754;':'color:#dc3545;'):''; return cell(m,p,{bold:true,extra:ex}); }).join('')+'<td></td></tr>';
 
   // ── 수익형/관리형 통계
+  var fBase=function(m){return stat[m]?stat[m].base:null;};
+  var fR80=function(m){return stat[m]?stat[m].r80:null;};
+  var fR60=function(m){return stat[m]?stat[m].r60:null;};
+  var fMavg=function(m){return stat[m]?stat[m].mgmtAvg:null;};
   rows+='<tr><td rowspan="6">수익</td><td>기준수익 (C유형 31일 100%)</td>'
-    +months.map(function(m){return cell(m, stat[m]?stat[m].base:null);}).join('')
+    +qCell(sumOf(fBase))+months.map(function(m){return cell(m,fBase(m));}).join('')
     +'<td><small>영업이익/수익형호실</small></td></tr>';
   rows+='<tr><td>80% 수익룰 (가입비형)</td>'
-    +months.map(function(m){return cell(m, stat[m]?stat[m].r80:null);}).join('')+'<td></td></tr>';
+    +qCell(sumOf(fR80))+months.map(function(m){return cell(m,fR80(m));}).join('')+'<td></td></tr>';
   rows+='<tr><td>60% 수익룰 (가입비면제형)</td>'
-    +months.map(function(m){return cell(m, stat[m]?stat[m].r60:null);}).join('')+'<td></td></tr>';
+    +qCell(sumOf(fR60))+months.map(function(m){return cell(m,fR60(m));}).join('')+'<td></td></tr>';
   rows+='<tr><td>수익형 호실 개수</td>'
-    +months.map(function(m){return cellCnt(m, stat[m]?stat[m].profitCnt:null);}).join('')+'<td></td></tr>';
+    +qCellCnt(stat[CM]?stat[CM].profitCnt:null)+months.map(function(m){return cellCnt(m, stat[m]?stat[m].profitCnt:null);}).join('')+'<td><small>당월 기준</small></td></tr>';
   rows+='<tr style="background:#fffbe6"><td>관리형 평균 수익</td>'
-    +months.map(function(m){return cell(m, stat[m]?stat[m].mgmtAvg:null);}).join('')+'<td><small>관리형 지급합계/객실수</small></td></tr>';
+    +qCell(avgOf(fMavg))+months.map(function(m){return cell(m,fMavg(m));}).join('')+'<td><small>관리형 기준수익금/객실수</small></td></tr>';
   rows+='<tr><td>관리형 호실 개수</td>'
-    +months.map(function(m){return cellCnt(m, stat[m]?stat[m].manageCnt:null,{last:true});}).join('')+'<td></td></tr>';
+    +qCellCnt(stat[CM]?stat[CM].manageCnt:null,{last:true})+months.map(function(m){return cellCnt(m, stat[m]?stat[m].manageCnt:null,{last:true});}).join('')+'<td><small>당월 기준</small></td></tr>';
 
   inp('perf-tbody').innerHTML=rows;
 
@@ -1749,13 +1772,13 @@ function renderPerfAccum(prev1, prev2){
   const col3 = (CM<=12?'1~'+CM+'월 누적':(CM===13?'상반기 누적':'연간 누적'));
 
   summaryEl.innerHTML =
-    '<table class="data-table mt-2" style="font-size:.78rem">'
+    '<table class="data-table mt-2" id="perf-accum-table">'
     +'<thead><tr>'
-    +'<th style="min-width:140px">항목</th>'
-    +'<th class="win" style="background:#e3f2fd">'+col0+'</th>'
-    +'<th class="win">'+col1+'</th>'
-    +'<th class="win">'+col2+'</th>'
-    +'<th class="win" style="background:#e8f4e8">'+col3+'</th>'
+    +'<th style="width:140px;max-width:140px">항목</th>'
+    +'<th class="win" style="width:96px;background:#e3f2fd">'+col0+'</th>'
+    +'<th class="win" style="width:80px">'+col1+'</th>'
+    +'<th class="win" style="width:80px">'+col2+'</th>'
+    +'<th class="win" style="width:104px;background:#e8f4e8">'+col3+'</th>'
     +'</tr></thead>'
     +'<tbody>'
 
