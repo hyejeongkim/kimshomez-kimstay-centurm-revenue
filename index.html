@@ -2031,9 +2031,10 @@ function calcSettle(){
 
     // [기준수익금 세팅 로직 — 정산 실지급 미반영, 기준값만 세팅]
     var _fmVal=((_ovm&&_ovm.fm!=null)?_ovm.fm:(r.fixedMonthly||0))||0;   // 월고정숙박료(customers)
+    var _appRatio=(_ovm&&_ovm.r!=null)?Number(_ovm.r):(roomTypeRatio(room)/100);  // 적용비율(타입)
     var baseStd=0;
-    if(isManage) baseStd=Math.max(0,_fmVal-maintFee);                                           // 관리형: 월고정숙박료 − 유지비
-    else if(isProfit&&!isTerminated) baseStd=Math.round(baseProfit*(room.joinFee===1?0.8:0.6)); // 수익형: 호실당 기준수익 × 배분율(80/60)
+    if(isManage) baseStd=Math.max(0,_fmVal-maintFee);                                                          // 관리형: 월고정숙박료 − 유지비
+    else if(isProfit&&!isTerminated) baseStd=Math.round(baseProfit*_appRatio*(room.joinFee===1?0.8:0.6));      // 수익형: 호실당기준수익 × 적용비율 × 배분율(80/60)
     if(d.rooms[i]) d.rooms[i].baseStd=baseStd;
 
     // 기준수익금(기존 실지급 계산용 — 미변경)
@@ -2122,7 +2123,7 @@ function calcSettle(){
       +'<td class="text-center">'+joinBadge+'</td>'
       +'<td class="text-center" style="color:'+(maintFee?'#b45309':'#9ca3af')+'">'+maintFee.toLocaleString()+'</td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:85px" id="s9_fix_'+i+'" value="'+(((_ovm&&_ovm.fm!=null)?_ovm.fm:fixedM)||'')+'" placeholder="0" title="customers 투숙객 월숙박료" oninput="updateSettleRoom('+i+',\'fixedMonthly\',this.value)"></td>'
-      +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:95px" id="s9_base_'+i+'" value="'+((r.baseOverride!=null?r.baseOverride:baseStd)||'')+'" placeholder="'+(baseStd||0)+'" oninput="updateSettleBase('+i+',this.value)" title="'+(isManage?'월고정숙박료-유지비':(isProfit?'호실당기준수익×'+(room.joinFee===1?'80%':'60%'):''))+' = '+baseStd+' (정산 미반영·기준값)'+'"></td>'
+      +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:95px" id="s9_base_'+i+'" value="'+((r.baseOverride!=null?r.baseOverride:baseStd)||'')+'" placeholder="'+(baseStd||0)+'" oninput="updateSettleBase('+i+',this.value)" title="'+(isManage?'월고정숙박료-유지비':(isProfit?'호실당기준수익×적용비율'+_appRatio+'×'+(room.joinFee===1?'80%':'60%'):''))+' = '+baseStd+' (정산 미반영·기준값)'+'"></td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_ar_'+i+'" value="'+(ar||'')+'" placeholder="0" oninput="updateSettleRoom('+i+',\'accruedAR\',this.value)"></td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_pre_'+i+'" value="'+(pre||'')+'" placeholder="0" oninput="updateSettleRoom('+i+',\'prepay\',this.value)"></td>'
       +'<td class="win fw-bold '+paidCls+'">'+paid.toLocaleString()+'</td>'
