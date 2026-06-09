@@ -117,8 +117,8 @@ body{background:#f0f2f5;margin:0}
   <div class="sum-box"><div class="sum-label">영업이익 (A-B)</div><div class="sum-val" id="sb-profit">₩0</div></div>
   <div class="sum-box"><div class="sum-label">수익형 호실</div><div class="sum-val text-info" id="sb-prooms">0실</div></div>
   <div class="sum-box"><div class="sum-label">관리형 호실</div><div class="sum-val text-info" id="sb-mrooms">0실</div></div>
-  <div class="sum-box"><div class="sum-label">수익형 지급금<small style="color:#888">(80%)</small></div><div class="sum-val text-success" id="sb-pavg">₩0</div></div>
-  <div class="sum-box"><div class="sum-label">관리형 평균지급금<small style="color:#888">(기준수익금)</small></div><div class="sum-val text-success" id="sb-mavg">₩0</div></div>
+  <div class="sum-box"><div class="sum-label">수익형 지급금<small style="color:#888">(80%·VAT포함)</small></div><div class="sum-val text-success" id="sb-pavg">₩0</div></div>
+  <div class="sum-box"><div class="sum-label">관리형 평균지급금<small style="color:#888">(기준수익금·VAT포함)</small></div><div class="sum-val text-success" id="sb-mavg">₩0</div></div>
 </div>
 
 <!-- Sheet nav -->
@@ -1372,8 +1372,8 @@ function updateHeaderStats(baseProfit){
     if(room.type==='수익형'){ pCnt++; pBaseSum+=(r.revenue||0); }
     else if(room.type==='관리형'){ mCnt++; mBaseSum+=(r.revenue||0); }
   });
-  var pAvg=(baseProfit!=null)?Math.round(baseProfit*0.8):0;   // 수익형 지급금 = 호실당 기준수익 × 80%(성과보고 80% 수익룰)
-  var mAvg=mCnt>0?Math.round(mBaseSum/mCnt):0;   // 관리형 기준수익금 평균(실호실)
+  var pAvg=(baseProfit!=null)?Math.round(baseProfit*0.8*1.1):0;   // 수익형 지급금(80%) + 부가세 10%
+  var mAvg=mCnt>0?Math.round((mBaseSum/mCnt)*1.1):0;              // 관리형 기준수익금 평균 + 부가세 10%
   var set=function(id,v){ var el=inp(id); if(el) el.textContent=v; };
   set('sb-prooms', pCnt+'실');
   set('sb-mrooms', mCnt+'실');
