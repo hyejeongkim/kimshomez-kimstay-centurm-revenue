@@ -770,28 +770,8 @@ function injectSeedData(){
         '워크인(현장)':       0,
       },
       walkin:0,
-      costs:{
-        labor1:{amt:100000,qty:1}, labor2:{amt:0,qty:1}, labor3:{amt:0,qty:1},
-        door_bat:{amt:0,qty:1}, light:{amt:0,qty:1}, tank_rep:{amt:0,qty:1},
-        tank_chg:{amt:0,qty:1}, door_as:{amt:0,qty:1},
-        rental_bidet:{amt:50000,qty:1}, rental_ctrl:{amt:0,qty:1}, rental_etc:{amt:0,qty:1},
-        invest1:{amt:389167,qty:1}, invest2:{amt:0,qty:1}, invest3:{amt:0,qty:1},
-        chfee1:{amt:0,qty:1},
-        mgmt1:{amt:200000,qty:1}, mgmt2:{amt:0,qty:1},
-        hk_lee:{amt:30000,qty:1}, hk_joo:{amt:50000,qty:1},
-        hk_laundry:{amt:0,qty:1}, hk_etc:{amt:0,qty:1},
-        laundry1:{amt:15000,qty:1}, laundry2:{amt:0,qty:1},
-        office1:{amt:120000,qty:1},
-        am1:{amt:31000,qty:1}, am2:{amt:0,qty:1}, am3:{amt:0,qty:1},
-        wel1:{amt:0,qty:1}, wel2:{amt:0,qty:1}, wel3:{amt:0,qty:1},
-        veh1:{amt:0,qty:1}, veh2:{amt:0,qty:1},
-        tax1:{amt:0,qty:1}, tax2:{amt:0,qty:1},
-        ad1:{amt:0,qty:1}, ad2:{amt:0,qty:1},
-        sup1:{amt:0,qty:1},
-        biz1:{amt:150000,qty:1}, biz2:{amt:0,qty:1},
-        ins1:{amt:20000,qty:1},
-        etcsp1:{amt:0,qty:1},
-      },
+      costSecs:{"fixed": [{"title": "1. 인건비", "key": "fx_s0_h", "items": [{"key": "fx_s0_0", "label": "운영수수료", "amt": 1000000, "qty": 1}, {"key": "fx_s0_1", "label": "경영지원", "amt": 500000, "qty": 1}, {"key": "fx_s0_2", "label": "기타", "amt": 0, "qty": 0}]}, {"title": "2. 간접인건비", "key": "fx_s1_h", "items": [{"key": "fx_s1_0", "label": "도어락전지교체비", "amt": 45000, "qty": 0}, {"key": "fx_s1_1", "label": "전등교체비", "amt": 35000, "qty": 0}, {"key": "fx_s1_2", "label": "물탱크 수리비", "amt": 350000, "qty": 0}, {"key": "fx_s1_3", "label": "물탱크 교체비", "amt": 650000, "qty": 0}, {"key": "fx_s1_4", "label": "도어락및키텍관련 A/S", "amt": 550000, "qty": 0}]}, {"title": "3. 지급수수료/렌탈", "key": "fx_s2_h", "items": [{"key": "fx_s2_0", "label": "정수기/비데 렌탈", "amt": 50000, "qty": 11}, {"key": "fx_s2_1", "label": "24시 관제", "amt": 3300000, "qty": 1}, {"key": "fx_s2_2", "label": "ERP 시스템 운영비", "amt": 1100000, "qty": 1}, {"key": "fx_s2_3", "label": "서버 운영비", "amt": 165000, "qty": 1}, {"key": "fx_s2_4", "label": "홈페이지 운영비", "amt": 110000, "qty": 1}, {"key": "fx_s2_5", "label": "기타", "amt": 0, "qty": 1}]}], "var": [{"title": "5. 채널수수료", "key": "vr_s0_h", "items": [{"key": "vr_s0_0", "label": "채널수수료", "amt": 1474417, "qty": 1}, {"key": "vr_s0_1", "label": "문자,카카오,세금계산서등 발행수수료", "amt": 0, "qty": 0}]}, {"title": "6. 관리비", "key": "vr_s1_h", "items": [{"key": "vr_s1_0", "label": "관리비(호실)", "amt": 3759691, "qty": 1}, {"key": "vr_s1_1", "label": "기타", "amt": 0, "qty": 0}]}, {"title": "7. 하우스키핑", "key": "vr_s2_h", "items": [{"key": "vr_s2_0", "label": "객실점검-메이드", "amt": 1320000, "qty": 1}, {"key": "vr_s2_1", "label": "객실점검-세탁", "amt": 414000, "qty": 1}, {"key": "vr_s2_2", "label": "기타", "amt": 0, "qty": 0}]}, {"title": "8. 세탁비", "key": "vr_s3_h", "items": [{"key": "vr_s3_0", "label": "세탁비 코인", "amt": 50000, "qty": 20}, {"key": "vr_s3_1", "label": "기타", "amt": 0, "qty": 0}]}, {"title": "9. 사무용품", "key": "vr_s4_h", "items": [{"key": "vr_s4_0", "label": "프리트용지", "amt": 20000, "qty": 1}, {"key": "vr_s4_1", "label": "우편비용", "amt": 200000, "qty": 1}]}], "var2": [{"title": "10. 어메니티(청소/비품포함)", "key": "v2_s0_h", "items": [{"key": "v2_s0_0", "label": "생수", "amt": 17000, "qty": 2}, {"key": "v2_s0_1", "label": "휴지", "amt": 27000, "qty": 1}, {"key": "v2_s0_2", "label": "기타", "amt": 0, "qty": 1}]}, {"title": "11. 복리후생", "key": "v2_s1_h", "items": [{"key": "v2_s1_0", "label": "간식", "amt": 0, "qty": 1}, {"key": "v2_s1_1", "label": "생수 및 차 음료", "amt": 0, "qty": 1}, {"key": "v2_s1_2", "label": "기타", "amt": 0, "qty": 1}]}, {"title": "12. 차량유지", "key": "v2_s2_h", "items": [{"key": "v2_s2_0", "label": "주유비", "amt": 80000, "qty": 3}, {"key": "v2_s2_1", "label": "교통비", "amt": 50000, "qty": 3}, {"key": "v2_s2_2", "label": "기타", "amt": 0, "qty": 1}]}, {"title": "13. 세금(기장료)", "key": "v2_s3_h", "items": [{"key": "v2_s3_0", "label": "기장료", "amt": 165000, "qty": 1}, {"key": "v2_s3_1", "label": "기타", "amt": 0, "qty": 1}]}], "special": [{"title": "14. 광고/홍보 마케팅", "key": "sp_s0_h", "items": [{"key": "sp_s0_0", "label": "여기어때 상위노출", "amt": 2200000, "qty": 1}, {"key": "sp_s0_1", "label": "기타", "amt": 0, "qty": 0}]}, {"title": "15. 추가 소모품", "key": "sp_s1_h", "items": [{"key": "sp_s1_0", "label": "커피캡슐", "amt": 100000, "qty": 3}, {"key": "sp_s1_1", "label": "분무기", "amt": 1000, "qty": 4}, {"key": "sp_s1_2", "label": "세탁세제", "amt": 29000, "qty": 1}, {"key": "sp_s1_3", "label": "유리세정제", "amt": 18000, "qty": 1}, {"key": "sp_s1_4", "label": "청소기필터", "amt": 50000, "qty": 1}]}, {"title": "16. 영업 및 출장비", "key": "sp_s2_h", "items": [{"key": "sp_s2_0", "label": "교통비", "amt": 150000, "qty": 1}, {"key": "sp_s2_1", "label": "기타", "amt": 0, "qty": 0}]}, {"title": "17. 보험 및 보상비", "key": "sp_s3_h", "items": [{"key": "sp_s3_0", "label": "보험료", "amt": 0, "qty": 0}]}, {"title": "18. 기타", "key": "sp_s4_h", "items": [{"key": "sp_s4_0", "label": "기타", "amt": 0, "qty": 0}]}]},
+      costs:{"fx_s0_0": {"amt": 1000000, "qty": 1}, "fx_s0_1": {"amt": 500000, "qty": 1}, "fx_s0_2": {"amt": 0, "qty": 0}, "fx_s1_0": {"amt": 45000, "qty": 0}, "fx_s1_1": {"amt": 35000, "qty": 0}, "fx_s1_2": {"amt": 350000, "qty": 0}, "fx_s1_3": {"amt": 650000, "qty": 0}, "fx_s1_4": {"amt": 550000, "qty": 0}, "fx_s2_0": {"amt": 50000, "qty": 11}, "fx_s2_1": {"amt": 3300000, "qty": 1}, "fx_s2_2": {"amt": 1100000, "qty": 1}, "fx_s2_3": {"amt": 165000, "qty": 1}, "fx_s2_4": {"amt": 110000, "qty": 1}, "fx_s2_5": {"amt": 0, "qty": 1}, "vr_s0_0": {"amt": 1474417, "qty": 1}, "vr_s0_1": {"amt": 0, "qty": 0}, "vr_s1_0": {"amt": 3759691, "qty": 1}, "vr_s1_1": {"amt": 0, "qty": 0}, "vr_s2_0": {"amt": 1320000, "qty": 1}, "vr_s2_1": {"amt": 414000, "qty": 1}, "vr_s2_2": {"amt": 0, "qty": 0}, "vr_s3_0": {"amt": 50000, "qty": 20}, "vr_s3_1": {"amt": 0, "qty": 0}, "vr_s4_0": {"amt": 20000, "qty": 1}, "vr_s4_1": {"amt": 200000, "qty": 1}, "v2_s0_0": {"amt": 17000, "qty": 2}, "v2_s0_1": {"amt": 27000, "qty": 1}, "v2_s0_2": {"amt": 0, "qty": 1}, "v2_s1_0": {"amt": 0, "qty": 1}, "v2_s1_1": {"amt": 0, "qty": 1}, "v2_s1_2": {"amt": 0, "qty": 1}, "v2_s2_0": {"amt": 80000, "qty": 3}, "v2_s2_1": {"amt": 50000, "qty": 3}, "v2_s2_2": {"amt": 0, "qty": 1}, "v2_s3_0": {"amt": 165000, "qty": 1}, "v2_s3_1": {"amt": 0, "qty": 1}, "sp_s0_0": {"amt": 2200000, "qty": 1}, "sp_s0_1": {"amt": 0, "qty": 0}, "sp_s1_0": {"amt": 100000, "qty": 3}, "sp_s1_1": {"amt": 1000, "qty": 4}, "sp_s1_2": {"amt": 29000, "qty": 1}, "sp_s1_3": {"amt": 18000, "qty": 1}, "sp_s1_4": {"amt": 50000, "qty": 1}, "sp_s2_0": {"amt": 150000, "qty": 1}, "sp_s2_1": {"amt": 0, "qty": 0}, "sp_s3_0": {"amt": 0, "qty": 0}, "sp_s4_0": {"amt": 0, "qty": 0}},
       rooms:[],
     };
     localStorage.setItem(KEY, JSON.stringify(d));
@@ -800,7 +780,7 @@ function injectSeedData(){
 
   // ─ 2026년 5월 (확정 정산: 매출 17,066,399 / 비용 18,280,108 / 영업이익 -1,213,709)
   (function(){
-    var KEY='kims_2026_5', VKEY='kims_seed_2026_5_v1';
+    var KEY='kims_2026_5', VKEY='kims_seed_2026_5_v2';
     if(localStorage.getItem(VKEY)) return; // 1회만 강제주입(이후 수동편집 보존)
     localStorage.setItem(VKEY,'1');
     var ch={}; OTA_CHANNELS.forEach(function(c){ ch[c]={판매금액:0,에누리액:0,채널수수료율:15,비고:''}; });
