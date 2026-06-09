@@ -1342,7 +1342,9 @@ function calcAll(){
   const profitRooms=ROOMS.filter(r=>r.type==='수익형').length;
   const curRooms = getM(CY,CM).rooms.filter(r=>r.type==='수익형').length;
   inp('sb-rooms').textContent=`${curRooms}실`;
-  const baseProfit=profit>0&&curRooms>0 ? Math.round(profit/curRooms) : 0;
+  // 호실당 기준수익(C유형 100%): 영업이익 배분 < 확정금(1~6월 20만/7·8월 40만)이면 확정금 보장(부족분=법인부담)
+  const _guar=(CM>=7&&CM<=8)?400000:200000;
+  const baseProfit=curRooms>0 ? Math.max(Math.round(profit/curRooms), _guar) : _guar;
   inp('sb-base').textContent=curfmt(baseProfit);
   
   updateOTATotals();
