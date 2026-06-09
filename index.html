@@ -4152,6 +4152,11 @@ function confirmImport(){
   }
 
   function gate(){
+    if(window.__gating) return;        // 재진입 가드(renderExec 래퍼 무한재귀 방지)
+    window.__gating = true;
+    try{ _gate(); } finally { window.__gating = false; }
+  }
+  function _gate(){
     const role = ACCESS.role;
     const isAdmin = role==='admin';
     const canPDF = role==='admin' || role==='trustee';
