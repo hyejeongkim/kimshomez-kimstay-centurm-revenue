@@ -82,6 +82,7 @@ body{background:#f0f2f5;margin:0}
     <div class="d-flex gap-2 align-items-center flex-wrap">
       <select id="selYear" class="form-select form-select-sm" style="width:84px"></select>
       <span class="text-white small">년</span>
+      <span id="adminTools" class="d-flex gap-2 align-items-center flex-wrap">
       <button class="btn btn-warning btn-sm fw-bold" onclick="openImportModal()" title="정산보고 엑셀을 업로드해서 자동 입력">📥 엑셀 임포트</button>
       <button class="btn btn-info btn-sm fw-bold" onclick="document.getElementById('cmFile').click()" title="centermmark 회원 데이터(JSON)를 불러옵니다(풀 적재). 실시간 아님.">👥 회원 불러오기</button>
       <input type="file" id="cmFile" accept=".json" style="display:none" onchange="importCentermmark(this.files[0])">
@@ -97,9 +98,10 @@ body{background:#f0f2f5;margin:0}
       <button class="btn btn-outline-light btn-sm" onclick="saveAllData()">💾 저장</button>
       <button class="btn btn-outline-light btn-sm" onclick="resetMonth()">🔄 초기화</button>
       <span id="cmStatus" class="text-white small"></span>
+      </span><!-- /adminTools -->
       <span class="text-white-50 mx-1" style="font-size:.8rem">|</span>
-      <a class="btn btn-light btn-sm fw-bold" href="https://members.kimshomez.com" title="위탁회원 포털(위탁정보)">🏢 위탁정보</a>
-      <a class="btn btn-outline-light btn-sm" href="https://www.kimshomez.com" title="킴스홈즈 홈페이지">🏠 홈</a>
+      <a class="btn btn-light btn-sm fw-bold" href="https://members.kimshomez.com" title="내 객실정보(위탁회원 포털)로 이동">🏠 나의 객실정보</a>
+      <a class="btn btn-outline-light btn-sm" href="https://www.kimshomez.com/centerm.html" title="킴스홈즈 통합로그인 화면으로 이동">🔐 통합로그인</a>
       <button class="btn btn-outline-warning btn-sm fw-bold" onclick="revenueLogout()" title="로그아웃">⏻ 로그아웃</button>
     </div>
   </div>
@@ -115,7 +117,7 @@ body{background:#f0f2f5;margin:0}
   <div class="sum-box"><div class="sum-label">영업이익 (A-B)</div><div class="sum-val" id="sb-profit">₩0</div></div>
   <div class="sum-box"><div class="sum-label">수익형 호실</div><div class="sum-val text-info" id="sb-prooms">0실</div></div>
   <div class="sum-box"><div class="sum-label">관리형 호실</div><div class="sum-val text-info" id="sb-mrooms">0실</div></div>
-  <div class="sum-box"><div class="sum-label">수익형 평균지급금<small style="color:#888">(기준수익금)</small></div><div class="sum-val text-success" id="sb-pavg">₩0</div></div>
+  <div class="sum-box"><div class="sum-label">수익형 지급금<small style="color:#888">(80%)</small></div><div class="sum-val text-success" id="sb-pavg">₩0</div></div>
   <div class="sum-box"><div class="sum-label">관리형 평균지급금<small style="color:#888">(기준수익금)</small></div><div class="sum-val text-success" id="sb-mavg">₩0</div></div>
 </div>
 
@@ -1370,7 +1372,7 @@ function updateHeaderStats(baseProfit){
     if(room.type==='수익형'){ pCnt++; pBaseSum+=(r.revenue||0); }
     else if(room.type==='관리형'){ mCnt++; mBaseSum+=(r.revenue||0); }
   });
-  var pAvg=pCnt>0?Math.round(pBaseSum/pCnt):0;   // 수익형 기준수익금 평균(실호실)
+  var pAvg=(baseProfit!=null)?Math.round(baseProfit*0.8):0;   // 수익형 지급금 = 호실당 기준수익 × 80%(성과보고 80% 수익룰)
   var mAvg=mCnt>0?Math.round(mBaseSum/mCnt):0;   // 관리형 기준수익금 평균(실호실)
   var set=function(id,v){ var el=inp(id); if(el) el.textContent=v; };
   set('sb-prooms', pCnt+'실');
@@ -1588,8 +1590,24 @@ function renderPerf(){
   function qStyle(opt){ opt=opt||{}; var st='border-left:2px solid #1565c0;border-right:2px solid #1565c0;background:#eef4fc;'; if(opt.last) st+='border-bottom:2px solid #1565c0;'; if(opt.bold) st+='font-weight:bold;'; if(opt.extra) st+=opt.extra; return st; }
   function qCell(val,opt){ opt=opt||{}; var disp=(val==null)?'':(val===0?'<span style="color:#9ab">–</span>':Math.round(val).toLocaleString()); return '<td class="win" style="'+qStyle(opt)+'">'+disp+'</td>'; }
   function qCellCnt(n,opt){ opt=opt||{}; var disp=(n==null)?'':('<strong>'+n+'</strong>실'); return '<td class="win text-center" style="'+qStyle(opt)+'">'+disp+'</td>'; }
-  // 1분기추가수익(6개월 합계×10%) 셀 — 초록 테두리, 현재는 공란
-  function addCell(opt){ opt=opt||{}; var st='border-right:2px solid #2e7d32;background:#eafaf0;'; if(opt.last) st+='border-bottom:2px solid #2e7d32;'; return '<td class="win" style="'+st+'"></td>'; }
+  // 1분기추가수익(6개월 기준수익금 세전합×10%) 셀 — 초록 테두리. val 없으면 공란
+  function addCell(opt,val){ opt=opt||{}; var st='border-right:2px solid #2e7d32;background:#eafaf0;'; if(opt.last) st+='border-bottom:2px solid #2e7d32;'; if(opt.bold) st+='font-weight:bold;';
+    var disp=(val==null)?'':'<span style="color:#1b5e20;font-weight:bold">'+Math.round(val).toLocaleString()+'</span>';
+    return '<td class="win" style="'+st+'">'+disp+'</td>'; }
+  // 1분기추가수익 = 7월 유지 수익형의 1~'+qLast+'월 기준수익금(세전) 총합 × 10% — 정산일(말월+10일) 이후만 산정
+  var _gateDate=new Date(CY, qLast, 10);      // 1분기→07/10, 2분기→익년01/10
+  var _addActive=(new Date()>=_gateDate);
+  var qBonus=null;
+  if(_addActive){
+    var _md={};
+    for(var _mm=qFirst;_mm<=qLast;_mm++){ var _raw=localStorage.getItem('kims_'+CY+'_'+_mm); if(_raw){ try{ _md[_mm]=JSON.parse(_raw); }catch(e){} } }
+    var _tot=0;
+    ROOMS.forEach(function(room,i){
+      if(room.type!=='수익형' || excludeRoomFromSettle(room) || room.terminated) return;   // 7월 유지 수익형만
+      for(var _m2=qFirst;_m2<=qLast;_m2++){ var _dd=_md[_m2]; if(_dd&&_dd.rooms&&_dd.rooms[i]) _tot+=(_dd.rooms[i].revenue||0); }  // revenue=기준수익금(세전)
+    });
+    qBonus=Math.round(_tot*0.1);
+  }
   // 집계 헬퍼
   function sumOf(fn){ var s=null; months.forEach(function(m){ var x=fn(m); if(x!=null) s=(s||0)+x; }); return s; }
   function avgOf(fn){ var arr=[]; months.forEach(function(m){ var x=fn(m); if(x!=null) arr.push(x); }); return arr.length?Math.round(arr.reduce(function(a,b){return a+b;},0)/arr.length):null; }
@@ -1648,7 +1666,7 @@ function renderPerf(){
     +qCell(sumOf(fCost),{bold:true})+addCell({bold:true})+months.map(function(m){return cell(m,fCost(m),{bold:true});}).join('')+'<td></td></tr>';
   var profAgg=sumOf(fProf);
   rows+='<tr class="grn-row"><td colspan="2"><strong>영업이익 (A-B)</strong></td>'
-    +qCell(profAgg,{bold:true,extra:(profAgg!=null?(profAgg>=0?'color:#198754;':'color:#dc3545;'):'')})+addCell({bold:true})
+    +qCell(profAgg,{bold:true,extra:(profAgg!=null?(profAgg>=0?'color:#198754;':'color:#dc3545;'):'')})+addCell({bold:true},qBonus)
     +months.map(function(m){ var p=fProf(m); var ex=(p!=null)?(p>=0?'color:#198754;':'color:#dc3545;'):''; return cell(m,p,{bold:true,extra:ex}); }).join('')+'<td></td></tr>';
 
   // ── 수익형/관리형 통계
@@ -2009,7 +2027,7 @@ function renderExec(){
 
     html+=`<tr style="${rowStyle}">
       <td>${room.no}</td><td>${room.fl}</td><td class="fw-bold">${room.rm}</td>
-      <td style="${hideOwner?'display:none':''}">${hideOwner?'***':room.nm}</td>
+      <td style="${hideOwner?'display:none':''}">${hideOwner?'***':(room.trustee||room.nm)}</td>
       <td><span class="badge-type badge-${room.type}">${room.type}</span></td>
       <td><input type="number" class="form-control form-control-xs win" id="ex_rev_${i}"
         value="${rev||''}" placeholder="0" style="width:110px"
@@ -3359,8 +3377,8 @@ function downloadPDFAll(){
     return html;
   }
 
-  // ── 08. 이체실행자료 HTML  (비admin은 관리인·계좌번호 컬럼 숨김)
-  var pii = !!window.__piiHide;
+  // ── 08. 이체실행자료 HTML  (전체 PDF는 개인정보(관리인·계좌·전화) 항상 마스킹 / 04 이체자료는 미포함)
+  var pii = true;
   var s08html='<h3>'+mn+' 이체실행자료 (정산 최종)</h3>';
   s08html+='<table><thead><tr><th>No.</th><th>층</th><th>호실</th>'+(pii?'':'<th>관리인</th>')+'<th>유형</th>'+(pii?'':'<th>계좌번호</th>')+'<th>기준수익금</th><th>누적미수금</th><th>선지급금</th><th>지급금</th><th>VAT</th><th>실지급수익금</th><th>지급여부</th></tr></thead><tbody>';
   var tB=0,tA2=0,tP2=0,tPa2=0,tV2=0,tF2=0;
@@ -4104,8 +4122,8 @@ function confirmImport(){
     });
   }
   function applyPiiHide(hide){
-    setCols('#pane-s04 table', [3], hide);     // 성함(은행/계좌 컬럼은 삭제됨)
-    setCols('#pane-s08 table', [3], hide);     // 성함(소유) (은행/계좌/성함수탁 컬럼은 삭제됨)
+    setCols('#pane-s04 table', [4], hide);     // 성함(소유) — No·층·호실 다음 4번째 컬럼
+    setCols('#pane-s08 table', [4], hide);     // 성함(소유) — No·층·호실 다음 4번째 컬럼
   }
   let accessChecked = false;   // verifyAccess 완료 여부(완료 전엔 리다이렉트 금지)
   function qp(k){ return new URLSearchParams(location.search).get(k); }
@@ -4156,6 +4174,13 @@ function confirmImport(){
     const rb=document.getElementById('roleBadge');
     if(rb){ rb.style.display='block';
       rb.textContent = {admin:'관리자(전체권한)', trustee:'위탁자(조회·PDF)', viewer:'미위탁(조회만)'}[role]||role; }
+
+    // 비admin(소유자/위탁자/미위탁): 관리도구·시트탭 숨김 → 월별버튼·연도콤보·PDF·이동버튼만 노출
+    const at=document.getElementById('adminTools'); if(at) at.style.display=isAdmin?'':'none';
+    const sn=document.getElementById('sheetNav');   if(sn) sn.style.display=isAdmin?'':'none';
+    if(!isAdmin){ const p1=document.getElementById('pane-s01'); // 소유자 화면 기본 = 01.성과보고
+      document.querySelectorAll('.sheet-pane').forEach(p=>p.classList.remove('active'));
+      if(p1) p1.classList.add('active'); }
 
     // 09.정산배분(최종): admin만
     document.querySelectorAll('.sheet-btn').forEach(b=>{
