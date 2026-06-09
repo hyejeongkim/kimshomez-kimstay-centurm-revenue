@@ -969,10 +969,13 @@ async function pullMgmt(){
   try{ const j=await _pullJSON('mgmt','&month='+mk);
     if(!j.exists){ alert(`${mk} 관리비 자료가 없습니다(관리단 업로드 필요).`); return; }
     const d=getM(CY,CM); if(!d.costs.mgmt1) d.costs.mgmt1={amt:0,qty:1};
-    d.costs.mgmt1.amt=j.su_total; d.costs.mgmt1.qty=1;
+    const su_cnt = (j.su_count!=null)?j.su_count : (j.su_rooms?j.su_rooms.length:0);
+    const mlbl = '관리비(수익형 '+su_cnt+'호실)';
+    d.costs.mgmt1.amt=j.su_total; d.costs.mgmt1.qty=1; d.costs.mgmt1.label=mlbl;
+    const _le=inp('lbl_mgmt1'); if(_le) _le.value=mlbl;
     if(typeof populateCostInputs==='function') populateCostInputs(d);
     if(typeof calcAll==='function')calcAll(); saveMonthData();
-    alert(`관리비(수익형 산출액 합) ${Number(j.su_total).toLocaleString()}원 반영(${mk})`);
+    alert(`관리비(수익형 ${su_cnt}호실 산출액 합) ${Number(j.su_total).toLocaleString()}원 반영(${mk})`);
   }catch(e){ alert('관리비 불러오기 실패: '+e.message); }
 }
 async function calcCashRevenue(){
@@ -1270,6 +1273,7 @@ function populateCostInputs(d){
       const ae = inp('amt_'+item.key); if(ae) ae.value = c.amt||'';
       const qe = inp('qty_'+item.key); if(qe) qe.value = c.qty||1;
       const ce = inp('chk_'+item.key); if(ce) ce.checked = (c.applied!==false);   // 기본 체크
+      const le = inp('lbl_'+item.key); if(le && c.label) le.value = c.label;       // 사용자/가변 라벨 복원
       syncQtyTotal(item.key);
     });
   });
@@ -1365,6 +1369,11 @@ function updateHeaderStats(baseProfit){
   set('sb-mrooms', mCnt+'실');
   set('sb-pavg', curfmt(pAvg));
   set('sb-mavg', curfmt(mAvg));
+
+  // 06.변동비 6.관리비 → 1.관리비 라벨을 '관리비(수익형 N호실)'로 가변 표시(수익형 호실수 연동)
+  var mlbl='관리비(수익형 '+pCnt+'호실)';
+  var le=inp('lbl_mgmt1'); if(le && le.value!==mlbl) le.value=mlbl;
+  if(d.costs && d.costs.mgmt1) d.costs.mgmt1.label=mlbl;
 }
 
 // ============================================================
@@ -2499,6 +2508,7 @@ function collectCurrentInputs(){
       const ae = inp('amt_'+item.key); if (ae) d.costs[item.key].amt = parseFloat(ae.value)||0;
       const qe = inp('qty_'+item.key); if (qe) d.costs[item.key].qty = parseFloat(qe.value)||1;
       const ce = inp('chk_'+item.key); if (ce) d.costs[item.key].applied = ce.checked;   // 비용적용여부
+      const le = inp('lbl_'+item.key); if (le && le.value && le.value!==item.label) d.costs[item.key].label = le.value;  // 가변/사용자 라벨 보존
     });
   });
 
