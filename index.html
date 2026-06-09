@@ -1550,14 +1550,18 @@ function renderPerf(){
   // ── 수익형/관리형 정산 행 (영업이익 > 0이든 아니든 항상 표시)
   const r80cur=Math.round(baseProfit*0.8);
   const r60cur=Math.round(baseProfit*0.6);
-  const r80cnt2=ROOMS.filter(function(r){return r.type==='수익형'&&r.joinFee===1&&!r.terminated;}).length;
-  const r60cnt2=ROOMS.filter(function(r){return r.type==='수익형'&&r.joinFee===0&&!r.terminated;}).length;
-  const mgmtNow=(function(){
-    var tot=0;
-    getM(CY,CM).rooms.forEach(function(r,i){if(ROOMS[i]&&ROOMS[i].type==='관리형'&&r.mgmt_pay_yn==='Y')tot+=r.final||0;});
-    return tot;
-  })();
-  const mgmtCntNow=getM(CY,CM).rooms.filter(function(r,i){return ROOMS[i]&&ROOMS[i].type==='관리형'&&r.mgmt_pay_yn==='Y';}).length;
+  const r80cnt2=ROOMS.filter(function(r){return r.type==='수익형'&&r.joinFee===1&&!excludeRoomFromSettle(r);}).length;  // 가입비형 객실수
+  const r60cnt2=ROOMS.filter(function(r){return r.type==='수익형'&&r.joinFee===0&&!excludeRoomFromSettle(r);}).length;  // 가입비면제형 객실수
+  // 관리형: 대상 객실수 / 지급호실수(실지급>0) / 실지급 합계 (09 규칙 일치)
+  let mgmtNow=0, mgmtCntAll=0, mgmtCntNow=0;
+  getM(CY,CM).rooms.forEach(function(r,i){
+    var rm=ROOMS[i];
+    if(rm && rm.type==='관리형' && !excludeRoomFromSettle(rm)){
+      mgmtCntAll++;
+      mgmtNow += (r.final||0);
+      if((r.paidNet||0) > 0) mgmtCntNow++;
+    }
+  });
 
   rows+='<tr><td colspan="2">호실당 기준수익 (C유형 100%)</td>'
     +'<td class="win">'+baseProfit.toLocaleString()+'</td>'
@@ -1577,7 +1581,7 @@ function renderPerf(){
     +'<td class="win">'+fc(p2?p2.r60:null)+'</td>'
     +'<td></td></tr>';
 
-  rows+='<tr><td colspan="2">관리형 지급금 합계 (지급호실 '+mgmtCntNow+'실)</td>'
+  rows+='<tr><td colspan="2">관리형 지급금 합계 (관리형 '+mgmtCntAll+'실 / 지급호실 '+mgmtCntNow+'실)</td>'
     +'<td class="win">'+mgmtNow.toLocaleString()+'</td>'
     +'<td class="win">'+fc(p1?p1.mgmtPaid:null)+'</td>'
     +'<td class="win">'+fc(p2?p2.mgmtPaid:null)+'</td>'
