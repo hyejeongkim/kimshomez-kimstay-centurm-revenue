@@ -398,6 +398,7 @@ body{background:#f0f2f5;margin:0}
             <th rowspan="2" title="관리형+가입비형=50,000 / 그 외=0" style="min-width:60px">유지비</th>
             <th rowspan="2" class="win" style="min-width:90px">월고정<br>숙박료</th>
             <th rowspan="2" class="win" style="min-width:100px">기준수익금</th>
+            <th rowspan="2" class="win" style="min-width:80px;background:#fff7ed" title="소유자에게 미지급된 누적금액(가산)">누적<br>미지급금</th>
             <th rowspan="2" class="win" style="min-width:80px">누적미수금</th>
             <th rowspan="2" class="win" style="min-width:80px">선지급금</th>
             <th rowspan="2" class="win" style="min-width:90px">지급금<br>(공급가)</th>
@@ -419,6 +420,7 @@ body{background:#f0f2f5;margin:0}
           <tr class="total-row">
             <td colspan="10">합계</td>
             <td class="win" id="s9-tot-base"></td>
+            <td class="win" id="s9-tot-unpaid"></td>
             <td class="win" id="s9-tot-ar"></td>
             <td class="win" id="s9-tot-pre"></td>
             <td class="win" id="s9-tot-paid"></td>
@@ -1999,7 +2001,7 @@ function calcSettle(){
   var tbody=document.getElementById('settle-tbody');
   if(!tbody) return;
   var html='';
-  var totBase=0,totAR=0,totPre=0,totPaid=0,totVat=0,totFinal=0,totQ1=0,totQ2=0;
+  var totBase=0,totAR=0,totPre=0,totPaid=0,totVat=0,totFinal=0,totQ1=0,totQ2=0,totUnpaid=0;
 
   // 정산 비대상 호실: 자가사용형 + '해당월 1일 이전 해지완료'(해지접수=미해지는 대상 유지)
   var _monFirst=CY+'-'+String(CM).padStart(2,'0')+'-01';
@@ -2063,7 +2065,7 @@ function calcSettle(){
       d.rooms[i].revenue=baseAmt; d.rooms[i].paid=paid;
       d.rooms[i].vat=vat; d.rooms[i].final=final;
     }
-    totBase+=baseAmt; totAR+=ar; totPre+=pre;
+    totBase+=baseAmt; totAR+=ar; totPre+=pre; totUnpaid+=(r.unpaidPrev||0);
     totPaid+=paid; totVat+=vat; totFinal+=final;
     totQ1+=q1amt; totQ2+=q2amt;
 
@@ -2124,6 +2126,7 @@ function calcSettle(){
       +'<td class="text-center" style="color:'+(maintFee?'#b45309':'#9ca3af')+'">'+maintFee.toLocaleString()+'</td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:85px" id="s9_fix_'+i+'" value="'+(((_ovm&&_ovm.fm!=null)?_ovm.fm:fixedM)||'')+'" placeholder="0" title="customers 투숙객 월숙박료" oninput="updateSettleRoom('+i+',\'fixedMonthly\',this.value)"></td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:95px" id="s9_base_'+i+'" value="'+((r.baseOverride!=null?r.baseOverride:baseStd)||'')+'" placeholder="'+(baseStd||0)+'" oninput="updateSettleBase('+i+',this.value)" title="'+(isManage?'월고정숙박료-유지비':(isProfit?'호실당기준수익×적용비율'+_appRatio+'×'+(room.joinFee===1?'80%':'60%'):''))+' = '+baseStd+' (정산 미반영·기준값)'+'"></td>'
+      +'<td class="win" style="background:#fffaf3"><input type="number" class="form-control form-control-xs win" style="width:80px" id="s9_unpaid_'+i+'" value="'+(r.unpaidPrev||'')+'" placeholder="0" title="누적 미지급금(가산)" oninput="updateSettleRoom('+i+',\'unpaidPrev\',this.value)"></td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_ar_'+i+'" value="'+(ar||'')+'" placeholder="0" oninput="updateSettleRoom('+i+',\'accruedAR\',this.value)"></td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_pre_'+i+'" value="'+(pre||'')+'" placeholder="0" oninput="updateSettleRoom('+i+',\'prepay\',this.value)"></td>'
       +'<td class="win fw-bold '+paidCls+'">'+paid.toLocaleString()+'</td>'
@@ -2143,7 +2146,7 @@ function calcSettle(){
   tbody.innerHTML=html;
 
   function sf(id,v){var el=document.getElementById(id);if(el)el.textContent=v>0?v.toLocaleString():'';}
-  sf('s9-tot-base',totBase); sf('s9-tot-ar',totAR); sf('s9-tot-pre',totPre);
+  sf('s9-tot-base',totBase); sf('s9-tot-unpaid',totUnpaid); sf('s9-tot-ar',totAR); sf('s9-tot-pre',totPre);
   sf('s9-tot-paid',totPaid); sf('s9-tot-vat',totVat); sf('s9-tot-final',totFinal);
   sf('s9-tot-q1',totQ1); sf('s9-tot-q2',totQ2);
 
