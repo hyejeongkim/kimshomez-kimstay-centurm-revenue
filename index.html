@@ -1794,10 +1794,13 @@ function renderTransfer(){
   if(!tbody) return;
   let html='';
   d.rooms.forEach((r,i)=>{
-    const badgeClass='badge-'+r.type;
+    const room=ROOMS[i]||r;
+    if(excludeRoomFromSettle(room)) return;   // 09와 동일 제외(자가사용/사전 해지완료)
+    const nm=room.trustee||r.nm; const tp=room.type||r.type;
+    const badgeClass='badge-'+tp;
     html+=`<tr>
-      <td>${r.no}</td><td>${r.fl}</td><td>${r.rm}</td><td>${r.nm}</td>
-      <td><span class="badge-type ${badgeClass}">${r.type}</span></td>
+      <td>${room.no}</td><td>${room.fl}</td><td>${room.rm}</td><td>${nm}</td>
+      <td><span class="badge-type ${badgeClass}">${tp}</span></td>
       <td><input type="number" class="form-control form-control-xs win" id="tr_fix_${i}" value="${r.fixedRet||''}" placeholder="0" style="width:90px" oninput="updateRoom(${i},'fixedRet',this.value)"></td>
       <td><input type="number" class="form-control form-control-xs win" id="tr_corp_${i}" value="${r.corpCost||''}" placeholder="0" style="width:90px" oninput="updateRoom(${i},'corpCost',this.value)"></td>
       <td><input type="number" class="form-control form-control-xs win" id="tr_fee_${i}" value="${r.roomFee||''}" placeholder="0" style="width:90px" oninput="updateRoom(${i},'roomFee',this.value)"></td>
@@ -1857,8 +1860,9 @@ function renderExec(){
 
   d.rooms.forEach((r,i)=>{
     const room=ROOMS[i];
+    if(excludeRoomFromSettle(room)) return;                // 09와 동일 제외(자가사용/사전 해지완료)
     // ── 필터 적용
-    if(filterTerminated && room.terminated) return;        // 해지 제외
+    if(filterTerminated && room.terminated) return;        // 해지 제외(필터)
     if(filterTrustee && !room.trustee.includes(filterTrustee)) return;  // 위탁자 검색
     if(filterType && room.type!==filterType) return;       // 구분 필터
     // 지급여부 필터 (이체실행자료)
@@ -1971,6 +1975,15 @@ function confMay(rm){ if(!(CY===2026&&CM===5)) return null; const k=('0000'+pars
 // 수익형 가입일(타입변경일) — members 기준(2026). 행에 입력값 있으면 우선.
 const TYPE_CHANGE_DATE = {"0214":"2025-06-01","0313":"2025-06-01","0510":"2025-09-27","0713":"2025-07-01","0714":"2026-03-23","0816":"2026-05-01","0817":"2025-07-01","0906":"2026-05-11","0911":"2025-07-01","1209":"2025-07-01","1218":"2025-07-01","1308":"2025-07-01","1313":"2025-06-01","1314":"2025-06-01","1418":"2025-09-27","1505":"2025-06-01","1607":"2025-07-01","1713":"2026-04-08","1802":"2025-07-01","1907":"2026-03-08"};
 function joinDateOf(room){ const k=('0000'+parseInt(room.rm,10)).slice(-4); return room.typeChangeDate || TYPE_CHANGE_DATE[k] || ''; }
+// 정산 비대상 호실(전역): 자가사용형 + 해당월 1일 이전 해지완료(해지접수=미해지는 대상 유지)
+function excludeRoomFromSettle(room){
+  if(!room) return false;
+  if(room.type==='자가사용형') return true;
+  var monFirst=CY+'-'+String(CM).padStart(2,'0')+'-01';
+  var td=String(room.terminatedDate||'').slice(0,10);
+  if(room.terminated && td && td < monFirst) return true;
+  return false;
+}
 function monthEndDate(y,m){ return new Date(y, m, 0); }   // m=1~12 → 해당월 말일(로컬 자정)
 function _parseLocalDate(s){ const p=String(s||'').split('-'); return new Date(+p[0], (+p[1]||1)-1, (+p[2]||1)); }  // YYYY-MM-DD → 로컬 자정(시간대 오차 방지)
 function daysBetween(d1,d2){ return Math.round((d2 - d1)/86400000); }
@@ -2023,16 +2036,8 @@ function calcSettle(){
   var html='';
   var totBase=0,totAR=0,totPre=0,totPaid=0,totPaidNet=0,totVat=0,totFinal=0,totQ1=0,totQ2=0,totUnpaid=0;
 
-  // 정산 비대상 호실: 자가사용형 + '해당월 1일 이전 해지완료'(해지접수=미해지는 대상 유지)
-  var _monFirst=CY+'-'+String(CM).padStart(2,'0')+'-01';
-  function _excludeRoom(room){
-    if(room.type==='자가사용형') return true;
-    var td=String(room.terminatedDate||'').slice(0,10);
-    if(room.terminated && td && td < _monFirst) return true;   // 해당월 1일 이전 해지완료
-    return false;
-  }
   ROOMS.forEach(function(room,i){
-    if(_excludeRoom(room)) return;   // 정산 대상에서 제외(자가사용/사전 해지완료)
+    if(excludeRoomFromSettle(room)) return;   // 정산 대상에서 제외(자가사용/사전 해지완료) — 전역 규칙
     var r=d.rooms[i]||{};
     var isTerminated=!!room.terminated;
     var isProfit=room.type==='수익형';
