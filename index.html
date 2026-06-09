@@ -113,8 +113,10 @@ body{background:#f0f2f5;margin:0}
   <div class="sum-box"><div class="sum-label">매출총액 (A)</div><div class="sum-val text-primary" id="sb-sales">₩0</div></div>
   <div class="sum-box"><div class="sum-label">비용총액 (B)</div><div class="sum-val text-danger" id="sb-cost">₩0</div></div>
   <div class="sum-box"><div class="sum-label">영업이익 (A-B)</div><div class="sum-val" id="sb-profit">₩0</div></div>
-  <div class="sum-box"><div class="sum-label">수익형 호실</div><div class="sum-val text-info" id="sb-rooms">0실</div></div>
-  <div class="sum-box"><div class="sum-label">호실당 기준수익</div><div class="sum-val text-success" id="sb-base">₩0</div></div>
+  <div class="sum-box"><div class="sum-label">수익형 호실</div><div class="sum-val text-info" id="sb-prooms">0실</div></div>
+  <div class="sum-box"><div class="sum-label">관리형 호실</div><div class="sum-val text-info" id="sb-mrooms">0실</div></div>
+  <div class="sum-box"><div class="sum-label">수익형 평균지급금<small style="color:#888">(80%)</small></div><div class="sum-val text-success" id="sb-pavg">₩0</div></div>
+  <div class="sum-box"><div class="sum-label">관리형 평균지급금<small style="color:#888">(기준수익금)</small></div><div class="sum-val text-success" id="sb-mavg">₩0</div></div>
 </div>
 
 <!-- Sheet nav -->
@@ -1346,6 +1348,25 @@ function updateOTATotals(){
   return {sumSale,sumEnu,sumSales,sumFee,sumIncome};
 }
 
+// 헤더 요약: 수익형/관리형 호실수 + 평균지급금(수익형=호실당기준수익×80%, 관리형=기준수익금 평균)
+function updateHeaderStats(baseProfit){
+  var d=getM(CY,CM);
+  var pCnt=0, mCnt=0, mBaseSum=0;
+  ROOMS.forEach(function(room,i){
+    if(excludeRoomFromSettle(room)) return;          // 자가사용/사전해지 제외
+    var r=(d.rooms&&d.rooms[i])||{};
+    if(room.type==='수익형'){ pCnt++; }
+    else if(room.type==='관리형'){ mCnt++; mBaseSum+=(r.revenue||0); }   // r.revenue = 기준수익금(calcSettle 저장)
+  });
+  var pAvg=(baseProfit!=null)?Math.round(baseProfit*0.8):0;   // 수익형 80% 지급금 기준
+  var mAvg=mCnt>0?Math.round(mBaseSum/mCnt):0;                // 관리형 기준수익금 평균
+  var set=function(id,v){ var el=inp(id); if(el) el.textContent=v; };
+  set('sb-prooms', pCnt+'실');
+  set('sb-mrooms', mCnt+'실');
+  set('sb-pavg', curfmt(pAvg));
+  set('sb-mavg', curfmt(mAvg));
+}
+
 // ============================================================
 // CALC ALL
 // ============================================================
@@ -1400,14 +1421,12 @@ function calcAll(){
   sb('sb-profit',profit,profit>=0?'text-profit':'text-loss');
   
   // Room count
-  const profitRooms=ROOMS.filter(r=>r.type==='수익형').length;
   const curRooms = getM(CY,CM).rooms.filter(r=>r.type==='수익형').length;
-  inp('sb-rooms').textContent=`${curRooms}실`;
   // 호실당 기준수익(C유형 100%): 영업이익 배분 < 확정금(1~6월 20만/7·8월 40만)이면 확정금 보장(부족분=법인부담)
   const _guar=(CM>=7&&CM<=8)?400000:200000;
   const baseProfit=curRooms>0 ? Math.max(Math.round(profit/curRooms), _guar) : _guar;
-  inp('sb-base').textContent=curfmt(baseProfit);
-  
+  updateHeaderStats(baseProfit);   // 수익형/관리형 호실수·평균지급금 헤더 갱신
+
   updateOTATotals();
   
   // Update field total
@@ -1505,7 +1524,7 @@ function monthStats(m){
     var pc=ROOMS.filter(function(r){return r.type==='수익형'&&!excludeRoomFromSettle(r);}).length;
     var mcnt=0,msum=0;
     getM(CY,CM).rooms.forEach(function(r,i){ var rm=ROOMS[i];
-      if(rm&&rm.type==='관리형'&&!excludeRoomFromSettle(rm)){ mcnt++; msum+=(r.final||0); } });
+      if(rm&&rm.type==='관리형'&&!excludeRoomFromSettle(rm)){ mcnt++; msum+=(r.revenue||0); } });   // 기준수익금
     return {base:base, r80:Math.round(base*0.8), r60:Math.round(base*0.6),
             profitCnt:pc, manageCnt:mcnt, mgmtAvg:mcnt>0?Math.round(msum/mcnt):0};
   }
@@ -1717,7 +1736,7 @@ function renderPerfAccum(prev1, prev2){
   // 현재 월 관리형 평균 지급금
   let _mgSum=0,_mgCnt=0;
   getM(CY,CM).rooms.forEach(function(r,i){ var rm=ROOMS[i];
-    if(rm&&rm.type==='관리형'&&!excludeRoomFromSettle(rm)){ _mgCnt++; _mgSum+=(r.final||0); } });
+    if(rm&&rm.type==='관리형'&&!excludeRoomFromSettle(rm)){ _mgCnt++; _mgSum+=(r.revenue||0); } });   // 기준수익금
   const curMgmtAvg=_mgCnt>0?Math.round(_mgSum/_mgCnt):0;
 
   // 전월/전전월 값 헬퍼
@@ -2144,7 +2163,7 @@ function calcSettle(){
     totBase+=baseAmt; totAR+=ar; totPre+=pre; totUnpaid+=(r.unpaidPrev||0);
     totPaid+=paid; totPaidNet+=paidNet; totVat+=vat; totFinal+=final;
     totQ1+=q1amt; totQ2+=q2amt;
-    if(isManage && !isTerminated){ totMgmtFinal+=final; totMgmtCnt++; }   // 관리형 평균 산출(대상 객실 전체)
+    if(isManage && !isTerminated){ totMgmtFinal+=baseAmt; totMgmtCnt++; }   // 관리형 평균 = 기준수익금 합계 ÷ 객실수
 
     // 행 스타일
     var rowStyle=isTerminated
@@ -2229,9 +2248,10 @@ function calcSettle(){
   sf('s9-tot-paid',totPaid); sf('s9-tot-paidnet',totPaidNet); sf('s9-tot-vat',totVat); sf('s9-tot-final',totFinal);
   sf('s9-tot-q1',totQ1); sf('s9-tot-q2',totQ2);
 
-  // 관리형 평균 지급금 = 관리형 지급금 합계 ÷ 관리형 객실수
+  // 관리형 평균 지급금 = 관리형 기준수익금 합계 ÷ 관리형 객실수
   var mgmtAvg=totMgmtCnt>0?Math.round(totMgmtFinal/totMgmtCnt):0;
-  sv('s9-mgmt', mgmtAvg.toLocaleString()+'원 (평균 / '+totMgmtCnt+'실)');
+  sv('s9-mgmt', mgmtAvg.toLocaleString()+'원 (기준수익금 평균 / '+totMgmtCnt+'실)');
+  if(typeof updateHeaderStats==='function') updateHeaderStats(baseProfit);   // 헤더 평균지급금 동기화
 
   localStorage.setItem('kims_'+CY+'_'+CM, JSON.stringify(getM(CY,CM)));
 }
