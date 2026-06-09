@@ -144,10 +144,10 @@ body{background:#f0f2f5;margin:0}
           <button class="btn btn-sm btn-outline-secondary" onclick="downloadTemplate('perf')">📥 템플릿</button>
         </div>
         <style>
-          #perf-table,#perf-accum-table{font-size:.76rem;table-layout:fixed;width:auto}
-          #perf-table th,#perf-table td,#perf-accum-table th,#perf-accum-table td{padding:2px 5px}
+          #perf-table,#perf-accum-table{font-size:.76rem;table-layout:fixed;width:100%;min-width:960px}
+          #perf-table th,#perf-table td,#perf-accum-table th,#perf-accum-table td{padding:3px 6px;overflow:hidden;text-overflow:ellipsis}
           #perf-table td:nth-child(1),#perf-table td:nth-child(2),#perf-accum-table td:nth-child(1){white-space:normal;line-height:1.15;word-break:keep-all}
-          #perf-table .win,#perf-accum-table .win{text-align:right;font-variant-numeric:tabular-nums}
+          #perf-table .win,#perf-accum-table .win{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
         </style>
         <div style="overflow-x:auto">
         <table class="data-table" id="perf-table">
