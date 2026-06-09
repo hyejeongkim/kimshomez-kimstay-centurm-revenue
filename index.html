@@ -1984,6 +1984,9 @@ function renderExec(){
   d.rooms.forEach((r,i)=>{
     const room=ROOMS[i];
     if(excludeRoomFromSettle(room)) return;                // 09와 동일 제외(자가사용/사전 해지완료)
+    // 소유자 모드: 본인 호실만 표시
+    if(window.__ownerMode && Array.isArray(window.__ownerRooms) && window.__ownerRooms.length
+       && !window.__ownerRooms.includes(parseInt(room.rm,10))) return;
     // ── 필터 적용
     if(filterTerminated && room.terminated) return;        // 해지 제외(필터)
     if(filterTrustee && !room.trustee.includes(filterTrustee)) return;  // 위탁자 검색
@@ -4178,9 +4181,15 @@ function confirmImport(){
     // 비admin(소유자/위탁자/미위탁): 관리도구·시트탭 숨김 → 월별버튼·연도콤보·PDF·이동버튼만 노출
     const at=document.getElementById('adminTools'); if(at) at.style.display=isAdmin?'':'none';
     const sn=document.getElementById('sheetNav');   if(sn) sn.style.display=isAdmin?'':'none';
-    if(!isAdmin){ const p1=document.getElementById('pane-s01'); // 소유자 화면 기본 = 01.성과보고
+    // 소유자 모드: 본인 호실만 표시(08 이체실행자료), 정산배분(09)·성과보고는 제외
+    window.__ownerMode = (!isAdmin && valid);
+    window.__ownerRooms = (ACCESS.rooms||[]).slice();
+    if(!isAdmin){
+      const p8=document.getElementById('pane-s08'); // 소유자 화면 기본 = 08.이체실행자료(본인 호실 5월 상세)
       document.querySelectorAll('.sheet-pane').forEach(p=>p.classList.remove('active'));
-      if(p1) p1.classList.add('active'); }
+      if(p8) p8.classList.add('active');
+      if(typeof renderExec==='function'){ try{ renderExec(); }catch(_){}}
+    }
 
     // 09.정산배분(최종): admin만
     document.querySelectorAll('.sheet-btn').forEach(b=>{
