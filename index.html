@@ -541,7 +541,7 @@ const ROOMS = [
   {no:37,fl:17,rm:'1702',nm:'박재운', area:110.36, price:286000000, bank:'농협', acct:'351-0659-9244-23', trustee:'오현진',       type:'자가사용형', joinFee:0, typeHistory:[]},
   {no:38,fl:17,rm:'1704',nm:'박재운', area:110.36, price:286000000, bank:'농협', acct:'351-0659-9244-23', trustee:'송하숙',       type:'관리형', joinFee:0, typeHistory:[]},
   {no:39,fl:17,rm:'1711',nm:'박재운', area:110.36, price:286000000, bank:'농협', acct:'351-0659-9244-23', trustee:'정미자',       type:'관리형', joinFee:0, typeHistory:[]},
-  {no:40,fl:17,rm:'1712',nm:'박재운', area:110.36, price:286000000, bank:'농협', acct:'351-0659-9244-23', trustee:'정미자',       type:'수익형', joinFee:1, typeHistory:[]},
+  {no:40,fl:17,rm:'1712',nm:'박재운', area:110.36, price:286000000, bank:'농협', acct:'351-0659-9244-23', trustee:'정미자',       type:'관리형', joinFee:1, typeHistory:[]},
   {no:41,fl:17,rm:'1713',nm:'박재운', area:110.36, price:286000000, bank:'농협', acct:'351-0659-9244-23', trustee:'정미자',       type:'수익형', joinFee:1, typeHistory:[]},
   {no:42,fl:18,rm:'1801',nm:'박재운', area:110.36, price:286000000, bank:'농협', acct:'351-0659-9244-23', trustee:'김혜정',       type:'관리형', joinFee:0, typeHistory:[]},
   {no:43,fl:18,rm:'1802',nm:'박재운', area:110.36, price:286000000, bank:'농협', acct:'351-0659-9244-23', trustee:'김혜정',       type:'수익형', joinFee:1, typeHistory:[]},
@@ -828,9 +828,9 @@ function injectSeedData(){
 
 // 1회성 메타 보정: 저장된 옛 구분(type)/가입비가 ROOMS_BASE 변경분을 덮어쓰는 문제 교정
 function _migrateRoomTypes(){
-  if(localStorage.getItem('kims_typefix_v3')) return;
-  localStorage.setItem('kims_typefix_v3','1');
-  const FIX={'714':{type:'수익형',joinFee:1},'816':{type:'수익형',joinFee:1},'1713':{type:'수익형',joinFee:1},'1210':{type:'관리형',joinFee:1}};
+  if(localStorage.getItem('kims_typefix_v4')) return;
+  localStorage.setItem('kims_typefix_v4','1');
+  const FIX={'714':{type:'수익형',joinFee:1},'816':{type:'수익형',joinFee:1},'1713':{type:'수익형',joinFee:1},'1210':{type:'관리형',joinFee:1},'1712':{type:'관리형',joinFee:1}};
   for(let i=0;i<localStorage.length;i++){
     const k=localStorage.key(i);
     if(!k || k.indexOf('kims_room_meta_')!==0) continue;
