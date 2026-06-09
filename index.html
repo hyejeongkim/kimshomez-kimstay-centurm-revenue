@@ -1122,6 +1122,8 @@ function loadMonth(){
 
   const d = getM(y, m);
   restoreCostSecs(d); buildCostSheets();   // 월별 동적 비용항목 구조 적용(엑셀 업로드분/기본값)
+  // d.rooms가 비었으면(시드 rooms:[] 등) ROOMS 기준으로 재구성 → 04/08/09 호실 표시
+  if(!Array.isArray(d.rooms) || d.rooms.length===0){ d.rooms = initMonthData(y,m).rooms; }
   const monthName = `${y}년 ${monthLabel(m)}`;
 
   // 제목 업데이트
