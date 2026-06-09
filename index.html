@@ -4183,17 +4183,19 @@ function confirmImport(){
     if(rb){ rb.style.display='block';
       rb.textContent = {admin:'관리자(전체권한)', trustee:'위탁자(조회·PDF)', viewer:'미위탁(조회만)'}[role]||role; }
 
-    // 비admin(소유자/위탁자/미위탁): 관리도구·시트탭 숨김 → 월별버튼·연도콤보·PDF·이동버튼만 노출
+    // 비admin(소유자/위탁자): 관리도구만 숨김. 시트탭은 노출하되 09(정산배분)만 숨김.
+    // 전체 시트를 읽기전용 + 개인정보 컬럼 마스킹으로 조회.
     const at=document.getElementById('adminTools'); if(at) at.style.display=isAdmin?'':'none';
-    const sn=document.getElementById('sheetNav');   if(sn) sn.style.display=isAdmin?'':'none';
-    // 소유자 모드: 본인 호실만 표시(08 이체실행자료), 정산배분(09)·성과보고는 제외
-    window.__ownerMode = (!isAdmin && valid);
-    window.__ownerRooms = (ACCESS.rooms||[]).slice();
+    const sn=document.getElementById('sheetNav');   if(sn) sn.style.display='';   // 시트탭 노출(09만 숨김)
+    window.__ownerMode = false;       // 전체 호실 조회(개인정보 마스킹)
+    window.__ownerRooms = [];
+    // 비admin이 09 정산배분 보고 있으면 성과보고로 전환(09 비노출)
     if(!isAdmin){
-      const p8=document.getElementById('pane-s08'); // 소유자 화면 기본 = 08.이체실행자료(본인 호실 5월 상세)
-      document.querySelectorAll('.sheet-pane').forEach(p=>p.classList.remove('active'));
-      if(p8) p8.classList.add('active');
-      if(typeof renderExec==='function'){ try{ renderExec(); }catch(_){}}
+      const p9=document.getElementById('pane-s09');
+      if(p9 && p9.classList.contains('active')){
+        document.querySelectorAll('.sheet-pane').forEach(p=>p.classList.remove('active'));
+        const p1=document.getElementById('pane-s01'); if(p1) p1.classList.add('active');
+      }
     }
 
     // 09.정산배분(최종): admin만
