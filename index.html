@@ -2000,7 +2000,16 @@ function calcSettle(){
   var html='';
   var totBase=0,totAR=0,totPre=0,totPaid=0,totVat=0,totFinal=0,totQ1=0,totQ2=0;
 
+  // 정산 비대상 호실: 자가사용형 + '해당월 1일 이전 해지완료'(해지접수=미해지는 대상 유지)
+  var _monFirst=CY+'-'+String(CM).padStart(2,'0')+'-01';
+  function _excludeRoom(room){
+    if(room.type==='자가사용형') return true;
+    var td=String(room.terminatedDate||'').slice(0,10);
+    if(room.terminated && td && td < _monFirst) return true;   // 해당월 1일 이전 해지완료
+    return false;
+  }
   ROOMS.forEach(function(room,i){
+    if(_excludeRoom(room)) return;   // 정산 대상에서 제외(자가사용/사전 해지완료)
     var r=d.rooms[i]||{};
     var isTerminated=!!room.terminated;
     var isProfit=room.type==='수익형';
