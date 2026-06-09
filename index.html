@@ -351,7 +351,7 @@ body{background:#f0f2f5;margin:0}
         <thead>
           <tr>
             <th>No</th><th>층</th><th>호실</th><th id="exec-th-owner">성함(소유)</th><th>계약타입</th>
-            <th class="win">수익금</th><th class="win">지급금</th><th class="win" style="background:#eefcf0">실지급금</th><th class="win">부가세</th>
+            <th class="win">기준수익금</th><th class="win">지급금</th><th class="win" style="background:#eefcf0">실지급금</th><th class="win">부가세</th>
             <th class="win">실지급(VAT포함)</th><th>지급예정일</th><th>사유</th><th>해지</th>
           </tr>
         </thead>
@@ -3386,8 +3386,8 @@ function downloadPDFAll(){
     var rm=ROOMS[i];if(!rm)return;
     var cls=rm.type==='수익형'&&(r.final||0)>0?'profit-row':rm.type==='관리형'?'manage-row':'';
     if(rm.terminated)cls='term-row';
-    tB+=(r.baseOverride||0);tA2+=(r.accruedAR||0);tP2+=(r.prepay||0);tPa2+=(r.paid||0);tV2+=(r.vat||0);tF2+=(r.final||0);
-    s08html+='<tr class="'+cls+'"><td>'+rm.no+'</td><td>'+rm.fl+'</td><td>'+rm.rm+'</td>'+(pii?'':'<td>'+rm.trustee+'</td>')+'<td>'+rm.type+'</td>'+(pii?'':'<td style="font-size:7px">'+rm.acct+'</td>')+'<td class="num">'+fmt(r.baseOverride||0)+'</td><td class="num">'+fmt(r.accruedAR||0)+'</td><td class="num">'+fmt(r.prepay||0)+'</td><td class="num">'+fmt(r.paid||0)+'</td><td class="num">'+fmt(r.vat||0)+'</td><td class="num bold">'+fmt(r.final||0)+'</td><td>'+(r.paid_yn==='Y'?'✅지급':r.paid_yn==='N'?'❌미지급':'-')+'</td></tr>';
+    tB+=(r.revenue||0);tA2+=(r.accruedAR||0);tP2+=(r.prepay||0);tPa2+=(r.paid||0);tV2+=(r.vat||0);tF2+=(r.final||0);
+    s08html+='<tr class="'+cls+'"><td>'+rm.no+'</td><td>'+rm.fl+'</td><td>'+rm.rm+'</td>'+(pii?'':'<td>'+rm.trustee+'</td>')+'<td>'+rm.type+'</td>'+(pii?'':'<td style="font-size:7px">'+rm.acct+'</td>')+'<td class="num">'+fmt(r.revenue||0)+'</td><td class="num">'+fmt(r.accruedAR||0)+'</td><td class="num">'+fmt(r.prepay||0)+'</td><td class="num">'+fmt(r.paid||0)+'</td><td class="num">'+fmt(r.vat||0)+'</td><td class="num bold">'+fmt(r.final||0)+'</td><td>'+(r.paid_yn==='Y'?'✅지급':r.paid_yn==='N'?'❌미지급':'-')+'</td></tr>';
   });
   s08html+='<tr class="total"><td colspan="'+(pii?4:6)+'">합계</td><td class="num">'+fmt(tB)+'</td><td class="num">'+fmt(tA2)+'</td><td class="num">'+fmt(tP2)+'</td><td class="num">'+fmt(tPa2)+'</td><td class="num">'+fmt(tV2)+'</td><td class="num bold">'+fmt(tF2)+'</td><td></td></tr>';
   s08html+='</tbody></table>';
