@@ -235,7 +235,7 @@ body{background:#f0f2f5;margin:0}
           <tr>
             <th>No</th><th>층</th><th>호실</th><th>성함</th><th>계약타입</th>
             <th class="win">확정금</th><th class="win">법인부담금</th><th class="win">객실사용/수수료</th>
-            <th class="win">누적미수금</th><th class="win">선지급금</th><th class="win">미지급금</th>
+            <th class="win">누적미수금</th><th class="win">선지급금</th><th class="win" style="background:#fff7ed">누적미지급금</th>
           </tr>
         </thead>
         <tbody id="transfer-tbody"></tbody>
@@ -342,7 +342,7 @@ body{background:#f0f2f5;margin:0}
         <thead>
           <tr>
             <th>No</th><th>층</th><th>호실</th><th id="exec-th-owner">성함(소유)</th><th>계약타입</th>
-            <th class="win">수익금</th><th class="win">지급금</th><th class="win">부가세</th>
+            <th class="win">수익금</th><th class="win">지급금</th><th class="win" style="background:#eefcf0">실지급금</th><th class="win">부가세</th>
             <th class="win">실지급(VAT포함)</th><th>지급예정일</th><th>사유</th><th>해지</th>
           </tr>
         </thead>
@@ -353,6 +353,7 @@ body{background:#f0f2f5;margin:0}
             <td id="exec-cnt"></td>
             <td class="win" id="exec-tot-rev"></td>
             <td class="win" id="exec-tot-paid"></td>
+            <td class="win" id="exec-tot-paidnet" style="background:#eefcf0"></td>
             <td class="win" id="exec-tot-vat"></td>
             <td class="win" id="exec-tot-final"></td>
             <td colspan="3"></td>
@@ -403,6 +404,7 @@ body{background:#f0f2f5;margin:0}
             <th rowspan="2" class="win" style="min-width:80px">누적미수금</th>
             <th rowspan="2" class="win" style="min-width:80px">선지급금</th>
             <th rowspan="2" class="win" style="min-width:90px">지급금<br>(공급가)</th>
+            <th rowspan="2" class="win" style="min-width:90px;background:#eefcf0" title="지급금이 음수면 0">실지급금</th>
             <th rowspan="2" class="win">부가세</th>
             <th rowspan="2" class="win" style="min-width:90px">실지급<br>수익금</th>
             <th class="win" style="background:#f0e8ff">1분기<br>정산</th>
@@ -425,6 +427,7 @@ body{background:#f0f2f5;margin:0}
             <td class="win" id="s9-tot-ar"></td>
             <td class="win" id="s9-tot-pre"></td>
             <td class="win" id="s9-tot-paid"></td>
+            <td class="win" id="s9-tot-paidnet" style="background:#eefcf0"></td>
             <td class="win" id="s9-tot-vat"></td>
             <td class="win" id="s9-tot-final"></td>
             <td class="win" id="s9-tot-q1"></td>
@@ -1817,7 +1820,7 @@ function renderTransfer(){
       <td><input type="number" class="form-control form-control-xs win" id="tr_fee_${i}" value="${r.roomFee||''}" placeholder="0" style="width:90px" oninput="updateRoom(${i},'roomFee',this.value)"></td>
       <td><input type="number" class="form-control form-control-xs win" id="tr_ar_${i}" value="${r.accruedAR||''}" placeholder="0" style="width:90px" oninput="updateRoom(${i},'accruedAR',this.value)"></td>
       <td><input type="number" class="form-control form-control-xs win" id="tr_pre_${i}" value="${r.prepay||''}" placeholder="0" style="width:90px" oninput="updateRoom(${i},'prepay',this.value)"></td>
-      <td><input type="number" class="form-control form-control-xs win" id="tr_unpaid_${i}" value="${r.unpaid||''}" placeholder="0" style="width:90px" oninput="updateRoom(${i},'unpaid',this.value)"></td>
+      <td style="background:#fffaf3"><input type="number" class="form-control form-control-xs win" id="tr_unpaid_${i}" value="${r.unpaidPrev||''}" placeholder="0" style="width:90px" title="정산배분의 누적미지급금" onchange="updateRoom(${i},'unpaidPrev',this.value);if(typeof calcSettle==='function')calcSettle();renderTransfer();"></td>
     </tr>`;
   });
   tbody.innerHTML=html;
@@ -1866,7 +1869,7 @@ function renderExec(){
   if(ownerTh) ownerTh.style.display = hideOwner?'none':'';
 
   let html='';
-  let totRev=0, totPaid=0, totVat=0, totFinal=0;
+  let totRev=0, totPaid=0, totPaidNet=0, totVat=0, totFinal=0;
   let shownCnt=0, totalCnt=ROOMS.length;
 
   d.rooms.forEach((r,i)=>{
@@ -1894,11 +1897,13 @@ function renderExec(){
     const rev   = r.revenue||0;
     const ar    = r.accruedAR||0;
     const pre   = r.prepay||0;
-    const paid  = Math.max(0, rev-ar-pre);
-    const vat   = Math.round(paid*0.1);
-    const final = paid+vat;
-    d.rooms[i].paid=paid; d.rooms[i].vat=vat; d.rooms[i].final=final;
-    totRev+=rev; totPaid+=paid; totVat+=vat; totFinal+=final;
+    const unpaid= r.unpaidPrev||0;
+    const paid    = rev+unpaid-pre-ar;       // 지급금(공급가)=기준수익금+누적미지급금−선지급금−누적미수금
+    const paidNet = Math.max(0, paid);       // 실지급금: 음수면 0
+    const vat   = Math.round(paidNet*0.1);   // 부가세(실지급금 기준)
+    const final = paidNet+vat;               // 실지급수익금
+    d.rooms[i].paid=paid; d.rooms[i].paidNet=paidNet; d.rooms[i].vat=vat; d.rooms[i].final=final;
+    totRev+=rev; totPaid+=paid; totPaidNet+=paidNet; totVat+=vat; totFinal+=final;
     shownCnt++;
 
     // 해지 호실 스타일
@@ -1917,7 +1922,8 @@ function renderExec(){
       <td><input type="number" class="form-control form-control-xs win" id="ex_rev_${i}"
         value="${rev||''}" placeholder="0" style="width:110px"
         oninput="updateRoomExec(${i},'revenue',this.value)" ${isTerminated?'disabled':''}></td>
-      <td class="win ${finalCls}">${paid.toLocaleString()}</td>
+      <td class="win ${finalCls}" style="${paid<0?'color:#dc2626':''}">${paid.toLocaleString()}</td>
+      <td class="win fw-bold" style="background:#eefcf0">${paidNet.toLocaleString()}</td>
       <td class="win">${vat.toLocaleString()}</td>
       <td class="win fw-bold ${finalCls}">${final.toLocaleString()}</td>
       <td><input type="text" class="form-control form-control-xs" id="ex_date_${i}"
@@ -1934,6 +1940,7 @@ function renderExec(){
   inp('exec-cnt').textContent=`${shownCnt} / ${totalCnt} 호`;
   inp('exec-tot-rev').textContent=totRev.toLocaleString();
   inp('exec-tot-paid').textContent=totPaid.toLocaleString();
+  { const e=inp('exec-tot-paidnet'); if(e) e.textContent=totPaidNet.toLocaleString(); }
   inp('exec-tot-vat').textContent=totVat.toLocaleString();
   inp('exec-tot-final').textContent=totFinal.toLocaleString();
 
@@ -2031,7 +2038,7 @@ function calcSettle(){
   var tbody=document.getElementById('settle-tbody');
   if(!tbody) return;
   var html='';
-  var totBase=0,totAR=0,totPre=0,totPaid=0,totVat=0,totFinal=0,totQ1=0,totQ2=0,totUnpaid=0;
+  var totBase=0,totAR=0,totPre=0,totPaid=0,totPaidNet=0,totVat=0,totFinal=0,totQ1=0,totQ2=0,totUnpaid=0;
 
   // 정산 비대상 호실: 자가사용형 + '해당월 1일 이전 해지완료'(해지접수=미해지는 대상 유지)
   var _monFirst=CY+'-'+String(CM).padStart(2,'0')+'-01';
@@ -2086,9 +2093,10 @@ function calcSettle(){
     var pre=r.prepay||0;            // 선지급금(차감)
     var unpaid=r.unpaidPrev||0;     // 누적미지급금(가산)
     var effBase=(r.baseOverride!=null)?r.baseOverride:baseStd;   // 기준수익금(편집값 우선)
-    var paid=effBase+unpaid-pre-ar;                              // 지급금(공급가)=기준수익금+누적미지급금−선지급금−누적미수금
-    var vat=Math.round(paid*0.1);                               // 부가세 10%
-    var final=paid+vat;                                         // 실지급금=지급금×1.1
+    var paid=effBase+unpaid-pre-ar;                              // 지급금(공급가)=기준수익금+누적미지급금−선지급금−누적미수금 (음수가능)
+    var paidNet=Math.max(0,paid);                               // 실지급금: 음수면 0
+    var vat=Math.round(paidNet*0.1);                            // 부가세 10% (실지급금 기준)
+    var final=paidNet+vat;                                      // 실지급수익금=실지급금×1.1
     var baseAmt=effBase;
 
     // 2026-05 확정 비고(메모)만 표시 — 금액은 계산식으로 산출
@@ -2099,11 +2107,11 @@ function calcSettle(){
     var q2amt=isProfit&&!isTerminated&&CM>=7  ?Math.round(q2ByRoom[i]*0.1):0;
 
     if(d.rooms[i]){
-      d.rooms[i].revenue=baseAmt; d.rooms[i].paid=paid;
+      d.rooms[i].revenue=baseAmt; d.rooms[i].paid=paid; d.rooms[i].paidNet=paidNet;
       d.rooms[i].vat=vat; d.rooms[i].final=final;
     }
     totBase+=baseAmt; totAR+=ar; totPre+=pre; totUnpaid+=(r.unpaidPrev||0);
-    totPaid+=paid; totVat+=vat; totFinal+=final;
+    totPaid+=paid; totPaidNet+=paidNet; totVat+=vat; totFinal+=final;
     totQ1+=q1amt; totQ2+=q2amt;
 
     // 행 스타일
@@ -2167,7 +2175,8 @@ function calcSettle(){
       +'<td class="win" style="background:#fffaf3"><input type="number" class="form-control form-control-xs win" style="width:80px" id="s9_unpaid_'+i+'" value="'+(r.unpaidPrev||'')+'" placeholder="0" title="누적 미지급금(가산)" onchange="updateSettleRoom('+i+',\'unpaidPrev\',this.value)"></td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_ar_'+i+'" value="'+(ar||'')+'" placeholder="0" onchange="updateSettleRoom('+i+',\'accruedAR\',this.value)"></td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_pre_'+i+'" value="'+(pre||'')+'" placeholder="0" onchange="updateSettleRoom('+i+',\'prepay\',this.value)"></td>'
-      +'<td class="win fw-bold '+paidCls+'">'+paid.toLocaleString()+'</td>'
+      +'<td class="win fw-bold '+paidCls+'" style="'+(paid<0?'color:#dc2626':'')+'">'+paid.toLocaleString()+'</td>'
+      +'<td class="win fw-bold" style="background:#eefcf0">'+paidNet.toLocaleString()+'</td>'
       +'<td class="win">'+vat.toLocaleString()+'</td>'
       +'<td class="win fw-bold" style="'+finalStyle+'">'+finalTxt+'</td>'
       +'<td class="win" style="background:#f8f0ff">'+q1Display+'</td>'
@@ -2185,7 +2194,7 @@ function calcSettle(){
 
   function sf(id,v){var el=document.getElementById(id);if(el)el.textContent=v>0?v.toLocaleString():'';}
   sf('s9-tot-base',totBase); sf('s9-tot-unpaid',totUnpaid); sf('s9-tot-ar',totAR); sf('s9-tot-pre',totPre);
-  sf('s9-tot-paid',totPaid); sf('s9-tot-vat',totVat); sf('s9-tot-final',totFinal);
+  sf('s9-tot-paid',totPaid); sf('s9-tot-paidnet',totPaidNet); sf('s9-tot-vat',totVat); sf('s9-tot-final',totFinal);
   sf('s9-tot-q1',totQ1); sf('s9-tot-q2',totQ2);
 
   localStorage.setItem('kims_'+CY+'_'+CM, JSON.stringify(getM(CY,CM)));
