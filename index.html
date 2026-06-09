@@ -2039,23 +2039,21 @@ function calcSettle(){
     else if(isProfit&&!isTerminated) baseStd=Math.round(baseProfit*_appRatio*(room.joinFee===1?0.8:0.6));      // 수익형: 호실당기준수익 × 적용비율 × 배분율(80/60)
     if(d.rooms[i]) d.rooms[i].baseStd=baseStd;
 
-    // 기준수익금(기존 실지급 계산용 — 미변경)
-    var autoBase=0;
-    if(isProfit&&!isTerminated) autoBase=Math.round((room.joinFee===1?r80amt:r60amt)*(roomTypeRatio(room)/100));
-    var fixedM=r.fixedMonthly||0;
-    var baseAmt=(r.baseOverride!=null)?r.baseOverride:(fixedM>0?fixedM:autoBase);
+    var fixedM=r.fixedMonthly||0;   // 월고정료 표시용
+    var autoBase=baseStd;
 
-    var ar=r.accruedAR||0;
-    var pre=r.prepay||0;
-    var paid=Math.max(0,baseAmt-ar-pre);
-    var vat=Math.round(paid*0.1);
-    var final=paid+vat;
+    // === 실지급 계산식 (사용자 지정) ===
+    var ar=r.accruedAR||0;          // 누적미수금(차감)
+    var pre=r.prepay||0;            // 선지급금(차감)
+    var unpaid=r.unpaidPrev||0;     // 누적미지급금(가산)
+    var effBase=(r.baseOverride!=null)?r.baseOverride:baseStd;   // 기준수익금(편집값 우선)
+    var paid=effBase+unpaid-pre-ar;                              // 지급금(공급가)=기준수익금+누적미지급금−선지급금−누적미수금
+    var vat=Math.round(paid*0.1);                               // 부가세 10%
+    var final=paid+vat;                                         // 실지급금=지급금×1.1
+    var baseAmt=effBase;
 
-    // 확정 미러링(2026-05): 발송 스냅샷의 호실별 실지급금을 그대로 표시(기준=실지급, +부가세=최종)
-    if(_ovm){
-      final=_ovm.f||0; vat=_ovm.v||0; paid=Math.max(0,final-vat); baseAmt=paid; ar=0; pre=0;
-      if(_ovm.n && d.rooms[i] && !d.rooms[i].settleNote){ d.rooms[i].settleNote=_ovm.n; r.settleNote=_ovm.n; }
-    }
+    // 2026-05 확정 비고(메모)만 표시 — 금액은 계산식으로 산출
+    if(_ovm && _ovm.n && d.rooms[i] && !d.rooms[i].settleNote){ d.rooms[i].settleNote=_ovm.n; r.settleNote=_ovm.n; }
 
     // 분기정산
     var q1amt=isProfit&&!isTerminated&&CM>=6  ?Math.round(q1ByRoom[i]*0.1):0;
