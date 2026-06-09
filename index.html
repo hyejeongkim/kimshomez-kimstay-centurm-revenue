@@ -416,7 +416,7 @@ body{background:#f0f2f5;margin:0}
         <tbody id="settle-tbody"></tbody>
         <tfoot>
           <tr class="total-row">
-            <td colspan="7">합계</td>
+            <td colspan="9">합계</td>
             <td class="win" id="s9-tot-base"></td>
             <td class="win" id="s9-tot-ar"></td>
             <td class="win" id="s9-tot-pre"></td>
@@ -2801,9 +2801,9 @@ function getSheetsData(){
   
   // 04. 이체자료
   const s04=[[`${mn} 정산배분 이체자료`],[]];
-  s04.push(['No.','층','호실','성함','분양면적','분양가격','은행명','계좌번호','계약타입','확정금','법인부담금','객실사용요금/수수료','누적미수금','선지급금','미지급금']);
+  s04.push(['No.','층','호실','성함','계약타입','확정금','법인부담금','객실사용요금/수수료','누적미수금','선지급금','미지급금']);
   d.rooms.forEach((r,i)=>{
-    s04.push([r.no,r.fl,r.rm,r.nm,r.area,r.price,r.bank,r.acct,r.type,
+    s04.push([r.no,r.fl,r.rm,r.nm,r.type,
       r.fixedRet||0,r.corpCost||0,r.roomFee||0,r.accruedAR||0,r.prepay||0,r.unpaid||0]);
   });
   
@@ -2873,7 +2873,7 @@ function getSheetsData(){
   // 08. 이체실행자료
   let totRev2=0,totPaid2=0,totVat2=0,totFinal2=0;
   const s08=[[`${mn} 정산배분 이체실행자료`],[]];
-  s08.push(['No.','층','호실','성함','분양면적','분양가격','은행명','계좌번호','계약타입','성함(수탁)','수익금','지급금','부가세','실지급수익금(VAT포함)','지급예정일','사유']);
+  s08.push(['No.','층','호실','성함','계약타입','수익금','지급금','부가세','실지급수익금(VAT포함)','지급예정일','사유']);
   d.rooms.forEach(r=>{
     const rev=r.revenue||0;
     const ar=r.accruedAR||0;
@@ -2882,10 +2882,10 @@ function getSheetsData(){
     const vat=Math.round(paid*0.1);
     const final=paid+vat;
     totRev2+=rev;totPaid2+=paid;totVat2+=vat;totFinal2+=final;
-    s08.push([r.no,r.fl,r.rm,r.nm,r.area,r.price,r.bank,r.acct,r.type,r.trustee,
-      rev,paid,vat,final,r.payDate||'',r.reason||'']);
+    s08.push([r.no,r.fl,r.rm,r.nm,r.type,
+      rev,paid,vat,final,(r.payDate||payDefault()),r.reason||'']);
   });
-  s08.push(['총계','','','','','','','','',`${d.rooms.length} 호`,totRev2,totPaid2,totVat2,totFinal2,'','']);
+  s08.push(['총계','','','','',totRev2,totPaid2,totVat2,totFinal2,'','']);
   
   return {s01,s02,s03,s04,s05,s06,s07,s08};
 }
@@ -3889,8 +3889,8 @@ function confirmImport(){
     });
   }
   function applyPiiHide(hide){
-    setCols('#pane-s04 table', [4,7,8], hide);     // 성함·은행명·계좌번호
-    setCols('#pane-s08 table', [4,7,8,10], hide);  // 성함(소유)·은행·계좌번호·성함(수탁)
+    setCols('#pane-s04 table', [3], hide);     // 성함(은행/계좌 컬럼은 삭제됨)
+    setCols('#pane-s08 table', [3], hide);     // 성함(소유) (은행/계좌/성함수탁 컬럼은 삭제됨)
   }
   let accessChecked = false;   // verifyAccess 완료 여부(완료 전엔 리다이렉트 금지)
   function qp(k){ return new URLSearchParams(location.search).get(k); }
