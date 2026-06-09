@@ -826,8 +826,25 @@ function injectSeedData(){
   })();
 }
 
+// 1회성 메타 보정: 저장된 옛 구분(type)/가입비가 ROOMS_BASE 변경분을 덮어쓰는 문제 교정
+function _migrateRoomTypes(){
+  if(localStorage.getItem('kims_typefix_v3')) return;
+  localStorage.setItem('kims_typefix_v3','1');
+  const FIX={'714':{type:'수익형',joinFee:1},'816':{type:'수익형',joinFee:1},'1713':{type:'수익형',joinFee:1},'1210':{type:'관리형',joinFee:1}};
+  for(let i=0;i<localStorage.length;i++){
+    const k=localStorage.key(i);
+    if(!k || k.indexOf('kims_room_meta_')!==0) continue;
+    try{
+      const meta=JSON.parse(localStorage.getItem(k)||'{}'); let ch=false;
+      for(const rm in FIX){ if(meta[rm]){ meta[rm].type=FIX[rm].type; meta[rm].joinFee=FIX[rm].joinFee; meta[rm].typeHistory=[]; ch=true; } }
+      if(ch) localStorage.setItem(k, JSON.stringify(meta));
+    }catch(e){}
+  }
+}
+
 function init(){
   injectSeedData();   // 월별 시드(2025-06, 2026-05 등) 주입 — 키 없을 때만
+  _migrateRoomTypes(); // 저장된 옛 구분 교정(714·816·1713 수익형 / 1210 관리형)
   // 객실 메타는 월별로 loadMonth() 안에서 로드한다(실시간 전역반영 안 함).
   const ysel = inp('selYear');
   for(let y=2024;y<=2030;y++) ysel.innerHTML+=`<option value="${y}" ${y===CY?'selected':''}>${y}년</option>`;
