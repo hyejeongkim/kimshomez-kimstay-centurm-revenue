@@ -395,6 +395,7 @@ body{background:#f0f2f5;margin:0}
             <th rowspan="2">위탁자</th><th rowspan="2">구분</th>
             <th rowspan="2">타입</th><th rowspan="2" class="win">적용비율</th>
             <th rowspan="2" title="수익형: 납입(80%)/면제(60%), 관리형: 납입여부">가입비<br><small style="font-weight:normal;font-size:.65rem;color:#666">(수익/관리)</small></th>
+            <th rowspan="2" title="수익형 가입일(타입변경일) — 면책 60일 일할 기준" style="min-width:96px;background:#eef6ff">수익형<br>변경일</th>
             <th rowspan="2" title="관리형+가입비형=50,000 / 그 외=0" style="min-width:60px">유지비</th>
             <th rowspan="2" class="win" style="min-width:90px">월고정<br>숙박료</th>
             <th rowspan="2" class="win" style="min-width:100px">기준수익금</th>
@@ -418,7 +419,7 @@ body{background:#f0f2f5;margin:0}
         <tbody id="settle-tbody"></tbody>
         <tfoot>
           <tr class="total-row">
-            <td colspan="10">합계</td>
+            <td colspan="11">합계</td>
             <td class="win" id="s9-tot-base"></td>
             <td class="win" id="s9-tot-unpaid"></td>
             <td class="win" id="s9-tot-ar"></td>
@@ -1955,6 +1956,12 @@ let _modalRoomIdx = -1; // 유형전환 모달 대상 호실 인덱스
 const CONFIRMED_2026_05 = {"1106":{"f":400000,"v":0,"n":"관리형(가입형) 숙박료450,000−유지비 50,000","t":"C","r":1,"fm":450000},"1116":{"f":450000,"v":0,"n":"관리형(가입형) 숙박료500,000−유지비 50,000","t":"H","r":0.94,"fm":500000},"1205":{"f":450000,"v":0,"n":"관리형(가입형) 숙박료500,000−유지비 50,000","t":"C","r":1,"fm":500000},"1209":{"f":132000,"v":12000,"n":"수익형 확정금 200,000×비율1.0×배분율60%","t":"C","r":1},"1210":{"f":350000,"v":0,"n":"관리형(가입형) 숙박료450,000−유지비 50,000 / 미납차감 50,000(유지비 4월 미납)","t":"C","r":1,"fm":450000},"1218":{"f":165440,"v":15040,"n":"수익형 확정금 200,000×비율0.94×배분율80%","t":"H","r":0.94},"1308":{"f":176000,"v":16000,"n":"수익형 확정금 200,000×비율1.0×배분율80%","t":"C","r":1},"1313":{"f":176000,"v":16000,"n":"수익형 확정금 200,000×비율1.0×배분율80%","t":"C","r":1},"1314":{"f":176000,"v":16000,"n":"수익형 확정금 200,000×비율1.0×배분율80%","t":"C","r":1},"1418":{"f":545986,"v":15040,"n":"수익형 확정금 200,000×비율0.94×배분율80% / 미지급가산 380,546(4월 미지급금)","t":"H","r":0.94},"1505":{"f":132000,"v":12000,"n":"수익형 확정금 200,000×비율1.0×배분율60%","t":"C","r":1},"1518":{"f":0,"v":0,"n":"관리형(면제형) 선지급=숙박료, 실지급0 / 선지급 500,000(우선수익금지급(숙박료 전액))","t":"H","r":0.94,"fm":500000},"1607":{"f":184800,"v":16800,"n":"수익형 확정금 200,000×비율1.05×배분율80%","t":"D","r":1.05},"1704":{"f":450000,"v":0,"n":"관리형(가입형) 숙박료500,000−유지비 50,000","t":"D","r":1.05,"fm":500000},"1711":{"f":350000,"v":0,"n":"관리형 수익금(직접지정) / 미납차감 150,000(1712호 3·4·5월 유지비 미납 회수)","t":"D","r":1.05,"fm":500000},"1712":{"f":200000,"v":0,"n":"관리형(가입형) 숙박료250,000−유지비 50,000","t":"D","r":1.05,"fm":250000},"1713":{"f":0,"v":0,"n":"유예기간 (~2026.06)","t":"D","r":1.05},"1801":{"f":550000,"v":0,"n":"관리형(가입형) 숙박료600,000−유지비 50,000","t":"D","r":1.05,"fm":600000},"1802":{"f":184800,"v":16800,"n":"수익형 확정금 200,000×비율1.05×배분율80%","t":"D","r":1.05},"1907":{"f":190080,"v":17280,"n":"수익형 확정금 200,000×비율1.08×배분율80%","t":"E","r":1.08},"0212":{"f":450000,"v":0,"n":"관리형(가입형) 숙박료500,000−유지비 50,000","t":"A","r":0.95,"fm":500000},"0214":{"f":167200,"v":15200,"n":"수익형 확정금 200,000×비율0.95×배분율80%","t":"A","r":0.95},"0309":{"f":350000,"v":0,"n":"관리형(가입형) 숙박료400,000−유지비 50,000","t":"A","r":0.95,"fm":400000},"0313":{"f":247200,"v":15200,"n":"수익형 확정금 200,000×비율0.95×배분율80% / 미지급가산 80,000(4월 미지급금)","t":"A","r":0.95},"0418":{"f":0,"v":0,"n":"관리형(면제형) 선지급=숙박료, 실지급0 / 미납차감 300,000(온수기 교체 미납(4월 350,000 수금) (별도)) / 선지급 400,000(우선수익금지급(숙박료 전액))","t":"G","r":0.92,"fm":400000},"0502":{"f":0,"v":0,"n":"관리형(면제형) 선지급=숙박료, 실지급0 / 선지급 500,000(우선수익금지급(숙박료 전액))","t":"B","r":0.98,"fm":500000},"0503":{"f":450000,"v":0,"n":"관리형(가입형) 숙박료500,000−유지비 50,000","t":"B","r":0.98,"fm":500000},"0510":{"f":172480,"v":15680,"n":"수익형 확정금 200,000×비율0.98×배분율80%","t":"B","r":0.98},"0602":{"f":450000,"v":0,"n":"관리형(가입형) 숙박료500,000−유지비 50,000","t":"B","r":0.98,"fm":500000},"0619":{"f":450000,"v":0,"n":"관리형(가입형) 숙박료500,000−유지비 50,000","t":"G","r":0.92,"fm":500000},"0706":{"f":0,"v":0,"n":"관리형(가입형) 숙박료470,000−유지비 50,000 / 선지급 2,240,000(선지급 회수(수익금 420,000 충당, 잔여 1,820,000 이월))","t":"C","r":1,"fm":470000},"0713":{"f":176000,"v":16000,"n":"수익형 확정금 200,000×비율1.0×배분율80%","t":"C","r":1},"0714":{"f":0,"v":0,"n":"유예기간 (~2026.06)","t":"C","r":1},"0816":{"f":0,"v":0,"n":"유예기간 (~2026.06)","t":"H","r":0},"0817":{"f":176449,"v":15040,"n":"수익형 확정금 200,000×비율0.94×배분율80% / 미지급가산 11,009(4월 미지급금 261,009 − 세무사수임료 250,000 차감 후 잔여)","t":"H","r":0.94},"0906":{"f":0,"v":0,"n":"유예기간 (~2026.06)","t":"C","r":0},"0911":{"f":132000,"v":12000,"n":"수익형 확정금 200,000×비율1.0×배분율60%","t":"C","r":1},"0917":{"f":0,"v":0,"n":"관리형(면제형) 선지급=숙박료, 실지급0 / 선지급 500,000(우선수익금지급(숙박료 전액))","t":"H","r":0.94,"fm":500000},"0205":{"f":0,"v":0,"n":"관리형(면제형) 선지급=숙박료, 실지급0 (위탁해지 2026-05-31, 5월 포함)","t":"A","r":0.95,"fm":470000},"0206":{"f":0,"v":0,"n":"관리형(면제형) 선지급=숙박료, 실지급0 (위탁해지 2026-05-31, 5월 포함)","t":"A","r":0.95,"fm":500000}};
 function confMay(rm){ if(!(CY===2026&&CM===5)) return null; const k=('0000'+parseInt(rm,10)).slice(-4); return CONFIRMED_2026_05[k]||CONFIRMED_2026_05[String(rm)]||null; }
 
+// 수익형 가입일(타입변경일) — members 기준(2026). 행에 입력값 있으면 우선.
+const TYPE_CHANGE_DATE = {"1907":"2026-03-08","0816":"2026-05-01","0714":"2026-03-23","0906":"2026-05-11","1713":"2026-04-08"};
+function joinDateOf(room){ const k=('0000'+parseInt(room.rm,10)).slice(-4); return room.typeChangeDate || TYPE_CHANGE_DATE[k] || ''; }
+function monthEndDate(y,m){ return new Date(y, m, 0); }   // m=1~12 → 해당월 말일
+function daysBetween(d1,d2){ return Math.floor((d2 - d1)/86400000); }
+
 function calcSettle(){
   const v=calcAll();
   const profit=v.profit, baseProfit=v.baseProfit;
@@ -2037,7 +2044,14 @@ function calcSettle(){
     var baseStd=0;
     if(isManage) baseStd=Math.max(0,_fmVal-maintFee);                                                          // 관리형: 월고정숙박료 − 유지비
     else if(isProfit&&!isTerminated) baseStd=Math.round(baseProfit*_appRatio*(room.joinFee===1?0.8:0.6));      // 수익형: 호실당기준수익 × 적용비율 × 배분율(80/60)
-    if(d.rooms[i]) d.rooms[i].baseStd=baseStd;
+    // 수익형 면책기간(가입일+60일) 일할: (정산월말일−가입일)<60 이면 기준수익 × (1 − days/30) (음수는 0)
+    var _joinD=isProfit?joinDateOf(room):'';
+    var _gdays=null;
+    if(isProfit&&!isTerminated&&_joinD){
+      _gdays=daysBetween(new Date(_joinD), monthEndDate(CY,CM));
+      if(_gdays<60) baseStd=Math.max(0, Math.round(baseStd*(1 - _gdays/30)));
+    }
+    if(d.rooms[i]){ d.rooms[i].baseStd=baseStd; if(_joinD) d.rooms[i].typeChangeDate=_joinD; }
 
     var fixedM=r.fixedMonthly||0;   // 월고정료 표시용
     var autoBase=baseStd;
@@ -2121,6 +2135,7 @@ function calcSettle(){
       +'<td class="text-center">'+((_ovm&&_ovm.t)||room.roomType||room.unitType||room.unit_type||'-')+'</td>'
       +'<td class="win text-center">'+(((_ovm&&_ovm.r!=null)?Number(_ovm.r):(roomTypeRatio(room)/100))).toFixed(2)+'</td>'
       +'<td class="text-center">'+joinBadge+'</td>'
+      +'<td class="text-center" style="background:#f7fbff">'+(isProfit?('<input type="date" class="form-control form-control-xs" style="width:118px;font-size:.66rem;padding:1px 3px" value="'+(_joinD||'')+'" oninput="updateSettleRoom('+i+',\'typeChangeDate\',this.value)" title="수익형 가입일 · 면책60일'+(_gdays!=null?(" · 경과"+_gdays+"일"+(_gdays<60?"→면책일할":"")):"")+'">'+(_gdays!=null&&_gdays<60?'<div style="font-size:.6rem;color:#b45309">면책 '+_gdays+'일</div>':'')):'<span class="text-muted">-</span>')+'</td>'
       +'<td class="text-center" style="color:'+(maintFee?'#b45309':'#9ca3af')+'">'+maintFee.toLocaleString()+'</td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:85px" id="s9_fix_'+i+'" value="'+(((_ovm&&_ovm.fm!=null)?_ovm.fm:fixedM)||'')+'" placeholder="0" title="customers 투숙객 월숙박료" oninput="updateSettleRoom('+i+',\'fixedMonthly\',this.value)"></td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:95px" id="s9_base_'+i+'" value="'+((r.baseOverride!=null?r.baseOverride:baseStd)||'')+'" placeholder="'+(baseStd||0)+'" oninput="updateSettleBase('+i+',this.value)" title="'+(isManage?'월고정숙박료-유지비':(isProfit?'호실당기준수익×적용비율'+_appRatio+'×'+(room.joinFee===1?'80%':'60%'):''))+' = '+baseStd+' (정산 미반영·기준값)'+'"></td>'
@@ -2160,7 +2175,7 @@ function updateSettleBase(i, val){
 function updateSettleRoom(i, field, val){
   const d=getM(CY,CM);
   if(!d.rooms[i]) return;
-  const strFields=['stayType','stayStart','stayEnd','paid_yn','mgmt_pay_yn','settleNote'];
+  const strFields=['stayType','stayStart','stayEnd','paid_yn','mgmt_pay_yn','settleNote','typeChangeDate'];
   d.rooms[i][field] = strFields.includes(field) ? val : (parseFloat(val)||0);
   calcSettle();
 }
