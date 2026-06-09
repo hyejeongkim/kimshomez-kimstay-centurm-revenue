@@ -1976,8 +1976,9 @@ function confMay(rm){ if(!(CY===2026&&CM===5)) return null; const k=('0000'+pars
 // 수익형 가입일(타입변경일) — members 기준(2026). 행에 입력값 있으면 우선.
 const TYPE_CHANGE_DATE = {"0214":"2025-06-01","0313":"2025-06-01","0510":"2025-09-27","0713":"2025-07-01","0714":"2026-03-23","0816":"2026-05-01","0817":"2025-07-01","0906":"2026-05-11","0911":"2025-07-01","1209":"2025-07-01","1218":"2025-07-01","1308":"2025-07-01","1313":"2025-06-01","1314":"2025-06-01","1418":"2025-09-27","1505":"2025-06-01","1607":"2025-07-01","1713":"2026-04-08","1802":"2025-07-01","1907":"2026-03-08"};
 function joinDateOf(room){ const k=('0000'+parseInt(room.rm,10)).slice(-4); return room.typeChangeDate || TYPE_CHANGE_DATE[k] || ''; }
-function monthEndDate(y,m){ return new Date(y, m, 0); }   // m=1~12 → 해당월 말일
-function daysBetween(d1,d2){ return Math.floor((d2 - d1)/86400000); }
+function monthEndDate(y,m){ return new Date(y, m, 0); }   // m=1~12 → 해당월 말일(로컬 자정)
+function _parseLocalDate(s){ const p=String(s||'').split('-'); return new Date(+p[0], (+p[1]||1)-1, (+p[2]||1)); }  // YYYY-MM-DD → 로컬 자정(시간대 오차 방지)
+function daysBetween(d1,d2){ return Math.round((d2 - d1)/86400000); }
 
 function calcSettle(){
   const v=calcAll();
@@ -2065,7 +2066,7 @@ function calcSettle(){
     var _joinD=isProfit?joinDateOf(room):'';
     var _gdays=null;
     if(isProfit&&!isTerminated&&_joinD){
-      _gdays=daysBetween(new Date(_joinD), monthEndDate(CY,CM));
+      _gdays=daysBetween(_parseLocalDate(_joinD), monthEndDate(CY,CM));
       if(_gdays<60) baseStd=Math.max(0, Math.round(baseStd*(1 - _gdays/30)));            // 경과<60: ×(1−경과일/30)
       else if(_gdays<90) baseStd=Math.max(0, Math.round(baseStd*((_gdays - 60)/30)));   // 60≤경과<90: ×(경과일−60)/30
       // 경과≥90: 만액(면책 미적용)
