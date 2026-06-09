@@ -233,8 +233,7 @@ body{background:#f0f2f5;margin:0}
       <table class="data-table">
         <thead>
           <tr>
-            <th>No</th><th>층</th><th>호실</th><th>성함</th><th>면적</th><th>분양가격</th>
-            <th>은행명</th><th>계좌번호</th><th>계약타입</th>
+            <th>No</th><th>층</th><th>호실</th><th>성함</th><th>계약타입</th>
             <th class="win">확정금</th><th class="win">법인부담금</th><th class="win">객실사용/수수료</th>
             <th class="win">누적미수금</th><th class="win">선지급금</th><th class="win">미지급금</th>
           </tr>
@@ -342,8 +341,7 @@ body{background:#f0f2f5;margin:0}
       <table class="data-table">
         <thead>
           <tr>
-            <th>No</th><th>층</th><th>호실</th><th id="exec-th-owner">성함(소유)</th><th>면적</th><th>분양가</th>
-            <th>은행</th><th>계좌번호</th><th>계약타입</th><th>성함(수탁)</th>
+            <th>No</th><th>층</th><th>호실</th><th id="exec-th-owner">성함(소유)</th><th>계약타입</th>
             <th class="win">수익금</th><th class="win">지급금</th><th class="win">부가세</th>
             <th class="win">실지급(VAT포함)</th><th>지급예정일</th><th>사유</th><th>해지</th>
           </tr>
@@ -351,8 +349,8 @@ body{background:#f0f2f5;margin:0}
         <tbody id="exec-tbody"></tbody>
         <tfoot>
           <tr class="total-row">
-            <td>총계</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
-            <td id="exec-cnt"></td><td></td>
+            <td>총계</td><td></td><td></td><td></td>
+            <td id="exec-cnt"></td>
             <td class="win" id="exec-tot-rev"></td>
             <td class="win" id="exec-tot-paid"></td>
             <td class="win" id="exec-tot-vat"></td>
@@ -1782,8 +1780,6 @@ function renderTransfer(){
     const badgeClass='badge-'+r.type;
     html+=`<tr>
       <td>${r.no}</td><td>${r.fl}</td><td>${r.rm}</td><td>${r.nm}</td>
-      <td>${r.area}</td><td>${r.price.toLocaleString()}</td>
-      <td>${r.bank}</td><td style="font-size:.7rem">${r.acct}</td>
       <td><span class="badge-type ${badgeClass}">${r.type}</span></td>
       <td><input type="number" class="form-control form-control-xs win" id="tr_fix_${i}" value="${r.fixedRet||''}" placeholder="0" style="width:90px" oninput="updateRoom(${i},'fixedRet',this.value)"></td>
       <td><input type="number" class="form-control form-control-xs win" id="tr_corp_${i}" value="${r.corpCost||''}" placeholder="0" style="width:90px" oninput="updateRoom(${i},'corpCost',this.value)"></td>
@@ -1798,7 +1794,16 @@ function renderTransfer(){
 
 function updateRoom(i, field, val){
   const d=getM(CY,CM);
-  d.rooms[i][field]=parseFloat(val)||0;
+  // payDate/reason 등 문자열 필드는 그대로, 숫자필드만 parseFloat
+  if(field==='payDate'||field==='reason'||field==='settleNote') d.rooms[i][field]=val;
+  else d.rooms[i][field]=parseFloat(val)||0;
+}
+// 지급예정일 기본값 = 정산월 다음달 15일(토/일이면 다음 영업일)
+function payDefault(){
+  let y=CY, m=CM+1; if(m>12){ m=1; y++; }
+  const d=new Date(y, m-1, 15), dow=d.getDay();
+  if(dow===6) d.setDate(17); else if(dow===0) d.setDate(16);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
 // ============================================================
@@ -1877,10 +1882,7 @@ function renderExec(){
     html+=`<tr style="${rowStyle}">
       <td>${room.no}</td><td>${room.fl}</td><td class="fw-bold">${room.rm}</td>
       <td style="${hideOwner?'display:none':''}">${hideOwner?'***':room.nm}</td>
-      <td>${room.area}</td><td style="font-size:.72rem">${room.price.toLocaleString()}</td>
-      <td>${room.bank}</td><td style="font-size:.68rem">${room.acct}</td>
       <td><span class="badge-type badge-${room.type}">${room.type}</span></td>
-      <td>${room.trustee}</td>
       <td><input type="number" class="form-control form-control-xs win" id="ex_rev_${i}"
         value="${rev||''}" placeholder="0" style="width:110px"
         oninput="updateRoomExec(${i},'revenue',this.value)" ${isTerminated?'disabled':''}></td>
@@ -1888,7 +1890,7 @@ function renderExec(){
       <td class="win">${vat.toLocaleString()}</td>
       <td class="win fw-bold ${finalCls}">${final.toLocaleString()}</td>
       <td><input type="text" class="form-control form-control-xs" id="ex_date_${i}"
-        value="${r.payDate||''}" placeholder="YY/MM/DD" style="width:80px"
+        value="${r.payDate||payDefault()}" placeholder="YY/MM/DD" style="width:88px"
         oninput="updateRoom(${i},'payDate',this.value)" ${isTerminated?'disabled':''}></td>
       <td><input type="text" class="form-control form-control-xs" id="ex_rsn_${i}"
         value="${r.reason||''}" style="width:110px"
