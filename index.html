@@ -556,7 +556,7 @@ const TYPE_KEYS=['A','B','C','D','E','F','G','H','I','J','K','L'];
 function getTypeRatios(){ try{ return Object.assign({},DEFAULT_TYPE_RATIOS, JSON.parse(localStorage.getItem('kims_room_types')||'{}')); }catch(e){ return Object.assign({},DEFAULT_TYPE_RATIOS); } }
 function saveTypeRatios(obj){ localStorage.setItem('kims_room_types', JSON.stringify(obj)); }
 // 호실의 타입 배분비율(%). 타입 미지정 시 100%(영향 없음)
-function roomTypeRatio(room){ const t=room&&room.roomType; if(!t) return 100; const r=getTypeRatios()[t]; return (r==null)?100:Number(r); }
+function roomTypeRatio(room){ const t=room&&(room.roomType||room.unitType||room.unit_type); if(!t) return 100; const r=getTypeRatios()[t]; return (r==null)?100:Number(r); }
 function _resetRoomMetaToBase(){
   ROOMS.forEach((r,i)=>{
     r.type=ROOMS_BASE[i].type; r.joinFee=ROOMS_BASE[i].joinFee;
@@ -900,7 +900,7 @@ async function pullOwners(){
 async function pullRooms(){
   if(!confirm(`${CY}.${CM}에 최신 객실정보(유형·가입유형·해지)를 불러와 반영·고정할까요?`)) return;
   try{ const j=await _pullJSON('rooms'); let n=0;
-    j.rooms.forEach(o=>{ const rm=_roomByRm(o.rm); if(rm){ rm.type=o.type||rm.type; rm.joinFee=o.joinFee; rm.unitType=o.unitType||rm.unitType; rm.terminated=!!o.terminated; rm.terminatedDate=o.terminatedDate||''; n++; } });
+    j.rooms.forEach(o=>{ const rm=_roomByRm(o.rm); if(rm){ rm.type=o.type||rm.type; rm.joinFee=o.joinFee; rm.unitType=o.unitType||rm.unitType; if(o.unitType){ rm.roomType=o.unitType; } rm.terminated=!!o.terminated; rm.terminatedDate=o.terminatedDate||''; n++; } });
     saveRoomMeta(CY,CM); if(typeof calcAll==='function')calcAll(); if(typeof renderCurrentSheet==='function')renderCurrentSheet();
     alert(`객실정보 ${n}실 반영·고정(${CY}.${CM})`);
   }catch(e){ alert('객실정보 불러오기 실패: '+e.message); }
@@ -2083,7 +2083,7 @@ function calcSettle(){
       +'<td class="fw-bold">'+room.rm+'</td>'
       +'<td style="font-size:.72rem;white-space:nowrap">'+room.trustee+'</td>'
       +'<td>'+typeBadge+'</td>'
-      +'<td class="text-center">'+(room.unitType||room.unit_type||'-')+'</td>'
+      +'<td class="text-center">'+(room.roomType||room.unitType||room.unit_type||'-')+'</td>'
       +'<td class="win text-center">'+(roomTypeRatio(room)/100).toFixed(2)+'</td>'
       +'<td class="text-center">'+joinBadge+'</td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:85px" id="s9_fix_'+i+'" value="'+(fixedM||'')+'" placeholder="0" oninput="updateSettleRoom('+i+',\'fixedMonthly\',this.value)"></td>'
