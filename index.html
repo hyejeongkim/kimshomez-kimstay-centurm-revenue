@@ -2023,11 +2023,20 @@ function calcSettle(){
       ? '<span class="badge rounded-pill" style="background:'+joinColor+';color:#fff;font-size:.68rem;cursor:pointer" title="클릭하여 가입비 납입/면제 전환" onclick="toggleJoinFee('+i+')">'+joinLabel+' ✎</span>'
       : '-';
 
+    var _ovm=confMay(room.rm);   // 2026-05 확정 오버라이드(타입/비율/월고정숙박료/실지급)
+
     // 유지비(유지비제외금): 관리형+가입비형 = 50,000 / 그 외 = 0 (※ 계산 미적용, 필드만 생성)
     var maintFee=(isManage&&room.joinFee===1)?50000:0;
     if(d.rooms[i]) d.rooms[i].maintFee=maintFee;
 
-    // 기준수익금
+    // [기준수익금 세팅 로직 — 정산 실지급 미반영, 기준값만 세팅]
+    var _fmVal=((_ovm&&_ovm.fm!=null)?_ovm.fm:(r.fixedMonthly||0))||0;   // 월고정숙박료(customers)
+    var baseStd=0;
+    if(isManage) baseStd=Math.max(0,_fmVal-maintFee);                                           // 관리형: 월고정숙박료 − 유지비
+    else if(isProfit&&!isTerminated) baseStd=Math.round(baseProfit*(room.joinFee===1?0.8:0.6)); // 수익형: 호실당 기준수익 × 배분율(80/60)
+    if(d.rooms[i]) d.rooms[i].baseStd=baseStd;
+
+    // 기준수익금(기존 실지급 계산용 — 미변경)
     var autoBase=0;
     if(isProfit&&!isTerminated) autoBase=Math.round((room.joinFee===1?r80amt:r60amt)*(roomTypeRatio(room)/100));
     var fixedM=r.fixedMonthly||0;
@@ -2040,7 +2049,6 @@ function calcSettle(){
     var final=paid+vat;
 
     // 확정 미러링(2026-05): 발송 스냅샷의 호실별 실지급금을 그대로 표시(기준=실지급, +부가세=최종)
-    var _ovm=confMay(room.rm);
     if(_ovm){
       final=_ovm.f||0; vat=_ovm.v||0; paid=Math.max(0,final-vat); baseAmt=paid; ar=0; pre=0;
       if(_ovm.n && d.rooms[i] && !d.rooms[i].settleNote){ d.rooms[i].settleNote=_ovm.n; r.settleNote=_ovm.n; }
@@ -2114,7 +2122,7 @@ function calcSettle(){
       +'<td class="text-center">'+joinBadge+'</td>'
       +'<td class="text-center" style="color:'+(maintFee?'#b45309':'#9ca3af')+'">'+maintFee.toLocaleString()+'</td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:85px" id="s9_fix_'+i+'" value="'+(((_ovm&&_ovm.fm!=null)?_ovm.fm:fixedM)||'')+'" placeholder="0" title="customers 투숙객 월숙박료" oninput="updateSettleRoom('+i+',\'fixedMonthly\',this.value)"></td>'
-      +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:95px" id="s9_base_'+i+'" value="'+(baseAmt||'')+'" placeholder="'+(autoBase||0)+'" oninput="updateSettleBase('+i+',this.value)" title="'+(isProfit?(room.joinFee===1?'80%':'60%')+'='+autoBase:'')+'"></td>'
+      +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:95px" id="s9_base_'+i+'" value="'+((r.baseOverride!=null?r.baseOverride:baseStd)||'')+'" placeholder="'+(baseStd||0)+'" oninput="updateSettleBase('+i+',this.value)" title="'+(isManage?'월고정숙박료-유지비':(isProfit?'호실당기준수익×'+(room.joinFee===1?'80%':'60%'):''))+' = '+baseStd+' (정산 미반영·기준값)'+'"></td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_ar_'+i+'" value="'+(ar||'')+'" placeholder="0" oninput="updateSettleRoom('+i+',\'accruedAR\',this.value)"></td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_pre_'+i+'" value="'+(pre||'')+'" placeholder="0" oninput="updateSettleRoom('+i+',\'prepay\',this.value)"></td>'
       +'<td class="win fw-bold '+paidCls+'">'+paid.toLocaleString()+'</td>'
