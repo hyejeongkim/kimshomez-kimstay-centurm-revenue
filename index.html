@@ -1410,6 +1410,29 @@ function calcRoomFinal(){
 // ============================================================
 // RENDER PERF (01. 성과보고)
 // ============================================================
+// 성과보고 비용 블록: 섹션 헤더행 + 각 항목행(└) — 첫 항목 라벨 누락 방지, 적용여부 반영
+function _perfCostBlock(secs, annexHtml){
+  function fv(n){ return (n!=null&&n!==0)?n.toLocaleString():''; }
+  const rowCnt = secs.reduce(function(s,sec){return s+sec.items.length+1;},0) + 1; // 섹션헤더+항목 + 소계
+  let out = '<tr><td rowspan="'+rowCnt+'">'+annexHtml+'</td>';
+  let first=true;
+  secs.forEach(function(sec){
+    let secTot=0;
+    sec.items.forEach(function(it){ var a=parseFloat(inp('amt_'+it.key)?.value||0)||0; var q=parseFloat(inp('qty_'+it.key)?.value||1)||1; var ck=inp('chk_'+it.key); if(!ck||ck.checked) secTot+=Math.round(a*q); });
+    var hdr='<td class="fw-bold" style="background:#f6f8fa">'+sec.title+'</td><td class="win fw-bold">'+fv(secTot)+'</td><td></td><td></td><td></td>';
+    if(first){ out+=hdr+'</tr>'; first=false; } else out+='<tr>'+hdr+'</tr>';
+    sec.items.forEach(function(it){
+      var amt=parseFloat(inp('amt_'+it.key)?.value||0)||0;
+      var qty=parseFloat(inp('qty_'+it.key)?.value||1)||1;
+      var tot=Math.round(amt*qty);
+      var label=inp('lbl_'+it.key)?.value||it.label;
+      var ck=inp('chk_'+it.key); var off=(ck&&!ck.checked);
+      out+='<tr style="'+(off?'opacity:.4':'')+'"><td style="padding-left:16px">└ '+label+(off?' <small>(제외)</small>':'')+'</td><td class="win">'+fv(tot)+'</td><td></td><td></td><td></td></tr>';
+    });
+  });
+  return out;
+}
+
 function renderPerf(){
   const d=getM(CY,CM);
   const v=calcAll();
@@ -1486,20 +1509,7 @@ function renderPerf(){
     +'<td></td></tr>';
 
   // ── 고정비 (Annex 1)
-  const fixedRowCnt=FIXED_SECS.reduce(function(s,sec){return s+sec.items.length;},0)+1;
-  rows+='<tr><td rowspan="'+fixedRowCnt+'">Annex 1<br>고정비</td>';
-  let firstFixed=true;
-  FIXED_SECS.forEach(function(sec){
-    sec.items.forEach(function(item,ii){
-      const amt=parseFloat(inp('amt_'+item.key)?.value||0)||0;
-      const qty=parseFloat(inp('qty_'+item.key)?.value||1)||1;
-      const tot=Math.round(amt*qty);
-      const label=inp('lbl_'+item.key)?.value||item.label;
-      const td=(ii===0?sec.title:'  └ '+label);
-      if(firstFixed){ rows+='<td>'+td+'</td><td class="win">'+fv(tot)+'</td><td></td><td></td><td></td></tr>'; firstFixed=false; }
-      else rows+='<tr><td>'+td+'</td><td class="win">'+fv(tot)+'</td><td></td><td></td><td></td></tr>';
-    });
-  });
+  rows+=_perfCostBlock(FIXED_SECS,'Annex 1<br>고정비');
   rows+='<tr><td class="fw-bold">고정비 소계(a)</td>'
     +'<td class="win fw-bold">'+fixedSum.toLocaleString()+'</td>'
     +'<td class="win">'+fc(p1?p1.fixedSum:null)+'</td>'
@@ -1507,20 +1517,7 @@ function renderPerf(){
     +'<td></td></tr>';
 
   // ── 변동비 (Annex 2)
-  const varRowCnt=VAR_SECS.reduce(function(s,sec){return s+sec.items.length;},0)+1;
-  rows+='<tr><td rowspan="'+varRowCnt+'">Annex 2<br>변동비</td>';
-  let firstVar=true;
-  VAR_SECS.forEach(function(sec){
-    sec.items.forEach(function(item,ii){
-      const amt=parseFloat(inp('amt_'+item.key)?.value||0)||0;
-      const qty=parseFloat(inp('qty_'+item.key)?.value||1)||1;
-      const tot=Math.round(amt*qty);
-      const label=inp('lbl_'+item.key)?.value||item.label;
-      const td=(ii===0?sec.title:'  └ '+label);
-      if(firstVar){ rows+='<td>'+td+'</td><td class="win">'+fv(tot)+'</td><td></td><td></td><td></td></tr>'; firstVar=false; }
-      else rows+='<tr><td>'+td+'</td><td class="win">'+fv(tot)+'</td><td></td><td></td><td></td></tr>';
-    });
-  });
+  rows+=_perfCostBlock(VAR_SECS.concat(VAR2_SECS),'Annex 2<br>변동비');
   rows+='<tr><td class="fw-bold">변동비 소계(b)</td>'
     +'<td class="win fw-bold">'+((varSum+var2Sum)).toLocaleString()+'</td>'
     +'<td class="win">'+fc(p1?(p1.varSum||0)+(p1.var2Sum||0):null)+'</td>'
@@ -1528,20 +1525,7 @@ function renderPerf(){
     +'<td></td></tr>';
 
   // ── 특수비 (Annex 3)
-  const spRowCnt=SPECIAL_SECS.reduce(function(s,sec){return s+sec.items.length;},0)+1;
-  rows+='<tr><td rowspan="'+spRowCnt+'">Annex 3<br>특수비</td>';
-  let firstSp=true;
-  SPECIAL_SECS.forEach(function(sec){
-    sec.items.forEach(function(item,ii){
-      const amt=parseFloat(inp('amt_'+item.key)?.value||0)||0;
-      const qty=parseFloat(inp('qty_'+item.key)?.value||1)||1;
-      const tot=Math.round(amt*qty);
-      const label=inp('lbl_'+item.key)?.value||item.label;
-      const td=(ii===0?sec.title:'  └ '+label);
-      if(firstSp){ rows+='<td>'+td+'</td><td class="win">'+fv(tot)+'</td><td></td><td></td><td></td></tr>'; firstSp=false; }
-      else rows+='<tr><td>'+td+'</td><td class="win">'+fv(tot)+'</td><td></td><td></td><td></td></tr>';
-    });
-  });
+  rows+=_perfCostBlock(SPECIAL_SECS,'Annex 3<br>특수비');
   rows+='<tr><td class="fw-bold">특수비 소계(c)</td>'
     +'<td class="win fw-bold">'+specialSum.toLocaleString()+'</td>'
     +'<td class="win">'+fc(p1?p1.specialSum:null)+'</td>'
