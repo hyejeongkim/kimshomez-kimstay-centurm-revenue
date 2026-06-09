@@ -141,6 +141,12 @@ body{background:#f0f2f5;margin:0}
           <span>KIMS HOMES <span id="rpt-title">2026년 6월</span> 성과 보고</span>
           <button class="btn btn-sm btn-outline-secondary" onclick="downloadTemplate('perf')">📥 템플릿</button>
         </div>
+        <style>
+          #perf-table{font-size:.76rem;table-layout:fixed;width:auto}
+          #perf-table th,#perf-table td{padding:2px 5px}
+          #perf-table td:nth-child(1),#perf-table td:nth-child(2){white-space:normal;line-height:1.15;word-break:keep-all}
+          #perf-table .win{text-align:right;font-variant-numeric:tabular-nums}
+        </style>
         <div style="overflow-x:auto">
         <table class="data-table" id="perf-table">
           <thead>
@@ -1512,8 +1518,8 @@ function renderPerf(){
   const mn=CY+'년 '+monthLabel(CM);
   document.getElementById('rpt-title').textContent=mn;
 
-  // 1월 ~ 당월 컬럼
-  const months=[]; for(let m=1;m<=CM&&m<=12;m++) months.push(m);
+  // 당월 ~ 1월 컬럼(내림차순: 5월,4월,3월,2월,1월)
+  const months=[]; for(let m=Math.min(CM,12);m>=1;m--) months.push(m);
 
   // 미리 월별 데이터 준비
   const cmap={}, summ={}, stat={};
@@ -1540,14 +1546,14 @@ function renderPerf(){
     return '<td class="win text-center" style="'+cellStyle(m,opt)+'">'+disp+'</td>';
   }
 
-  // 헤더(1~당월)
-  let head='<tr><th style="width:110px">구분</th><th style="min-width:150px">항목</th>';
+  // 헤더(당월~1월)
+  let head='<tr><th style="width:64px">구분</th><th style="width:130px;max-width:130px">항목</th>';
   months.forEach(function(m){
     var cur=(m===CM);
-    head+='<th class="win" style="width:96px;'+(cur?'border:2px solid #e53935;border-bottom:none;background:#fff5f5;color:#c62828;':'')+'">'
+    head+='<th class="win" style="width:80px;'+(cur?'border:2px solid #e53935;border-bottom:none;background:#fff5f5;color:#c62828;':'')+'">'
       +m+'월'+(cur?'<br><span style="font-size:.62rem">(당월)</span>':'')+'</th>';
   });
-  head+='<th style="width:120px">비고</th></tr>';
+  head+='<th style="width:90px">비고</th></tr>';
   document.querySelector('#perf-table thead').innerHTML=head;
 
   // Annex 비용 블록(섹션 단위 행 + 소계)
@@ -1569,7 +1575,7 @@ function renderPerf(){
   // ── 매출
   rows+='<tr><td rowspan="2">매출</td><td>OTA 매출</td>'
     +months.map(function(m){return cell(m, summ[m]?summ[m].otaT:null);}).join('')+'<td></td></tr>';
-  rows+='<tr><td>현장매출 <small style="color:#888">(가입비·유지비·현금·카드·이체)</small></td>'
+  rows+='<tr><td>현장매출 <small style="color:#aaa">(현금·카드·이체)</small></td>'
     +months.map(function(m){return cell(m, summ[m]?summ[m].fieldNet:null);}).join('')+'<td></td></tr>';
   rows+='<tr class="total-row"><td colspan="2">매출총액 (A)</td>'
     +months.map(function(m){return cell(m, summ[m]?summ[m].sales:null,{bold:true});}).join('')+'<td></td></tr>';
