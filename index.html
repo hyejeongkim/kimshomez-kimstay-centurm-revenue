@@ -1197,10 +1197,11 @@ function buildCostSection(containerId, secs, prefix){
     html += `<div class="mb-3">
       <div class="sec-header" style="margin-top:8px">${sec.title}</div>
       <table class="data-table">
-        <thead><tr><th>No</th><th>Description</th><th class="win" style="width:130px">Amount</th><th style="width:70px">QTY</th><th class="win" style="width:130px">Total (KRW)</th><th style="width:120px">Remarks</th></tr></thead>
+        <thead><tr><th style="width:44px" title="비용적용여부(해제 시 정산 제외)">적용</th><th>No</th><th>Description</th><th class="win" style="width:130px">Amount</th><th style="width:70px">QTY</th><th class="win" style="width:130px">Total (KRW)</th><th style="width:120px">Remarks</th></tr></thead>
         <tbody>`;
     sec.items.forEach((item,i)=>{
       html += `<tr>
+        <td class="text-center"><input type="checkbox" id="chk_${item.key}" checked title="비용적용여부" onchange="calcAll()"></td>
         <td>${i+1}</td>
         <td><input type="text" class="form-control form-control-xs w-100" id="lbl_${item.key}" value="${item.label}" oninput="calcAll()"></td>
         <td><input type="number" class="form-control form-control-xs win w-100" id="amt_${item.key}" value="${item.amt||''}" placeholder="0" oninput="syncQtyTotal('${item.key}');calcAll()"></td>
@@ -1210,7 +1211,7 @@ function buildCostSection(containerId, secs, prefix){
       </tr>`;
     });
     html += `</tbody>
-        <tfoot><tr class="sub-row"><td colspan="4" class="text-end">TOTAL</td><td class="win" id="sec_${sec.key}">₩0</td><td></td></tr></tfoot>
+        <tfoot><tr class="sub-row"><td colspan="5" class="text-end">TOTAL</td><td class="win" id="sec_${sec.key}">₩0</td><td></td></tr></tfoot>
       </table><div style="margin-top:4px"><button class="btn btn-sm btn-outline-secondary" onclick="addCostItem('${prefix}',${si})">+ 항목 추가</button></div></div>`;
   });
   document.getElementById(containerId).innerHTML = html;
@@ -1231,6 +1232,7 @@ function populateCostInputs(d){
       if(!c) return;
       const ae = inp('amt_'+item.key); if(ae) ae.value = c.amt||'';
       const qe = inp('qty_'+item.key); if(qe) qe.value = c.qty||1;
+      const ce = inp('chk_'+item.key); if(ce) ce.checked = (c.applied!==false);   // 기본 체크
       syncQtyTotal(item.key);
     });
   });
@@ -1341,7 +1343,10 @@ function calcAll(){
       const qty=parseFloat(inp('qty_'+item.key)?.value||1)||1;
       const tot=Math.round(amt*qty);
       syncQtyTotal(item.key);
-      secSum+=tot;
+      const chk=inp('chk_'+item.key);
+      const applied = chk? chk.checked : true;     // 비용적용여부
+      const trow=chk?chk.closest('tr'):null; if(trow) trow.style.opacity=applied?'':'0.45';
+      if(applied) secSum+=tot;                      // 미체크는 정산(영업이익)에서 제외
     });
     const se=inp('sec_'+sec.key); if(se) se.textContent=curfmt(secSum);
     if(FIXED_SECS.find(s=>s.key===sec.key)) fixedSum+=secSum;
@@ -1619,7 +1624,7 @@ function getMonthProfit(m){
         let sSum=0;
         sec.items.forEach(function(item){
           const c=d.costs[item.key];
-          if(c) sSum+=Math.round((c.amt||0)*(c.qty||1));
+          if(c && c.applied!==false) sSum+=Math.round((c.amt||0)*(c.qty||1));   // 미체크 제외
         });
         if(FIXED_SECS.find(function(s){return s.key===sec.key;})) fixedSum+=sSum;
         else if(VAR_SECS.find(function(s){return s.key===sec.key;})) varSum+=sSum;
@@ -2394,6 +2399,7 @@ function collectCurrentInputs(){
       if (!d.costs[item.key]) d.costs[item.key] = { amt:0, qty:1 };
       const ae = inp('amt_'+item.key); if (ae) d.costs[item.key].amt = parseFloat(ae.value)||0;
       const qe = inp('qty_'+item.key); if (qe) d.costs[item.key].qty = parseFloat(qe.value)||1;
+      const ce = inp('chk_'+item.key); if (ce) d.costs[item.key].applied = ce.checked;   // 비용적용여부
     });
   });
 
