@@ -2137,13 +2137,13 @@ function calcSettle(){
       +'<td class="text-center">'+((_ovm&&_ovm.t)||room.roomType||room.unitType||room.unit_type||'-')+'</td>'
       +'<td class="win text-center">'+(((_ovm&&_ovm.r!=null)?Number(_ovm.r):(roomTypeRatio(room)/100))).toFixed(2)+'</td>'
       +'<td class="text-center">'+joinBadge+'</td>'
-      +'<td class="text-center" style="background:#f7fbff">'+(isProfit?('<input type="date" class="form-control form-control-xs" style="width:118px;font-size:.66rem;padding:1px 3px" value="'+(_joinD||'')+'" oninput="updateSettleRoom('+i+',\'typeChangeDate\',this.value)" title="수익형 가입일 · 면책60일'+(_gdays!=null?(" · 경과"+_gdays+"일"+(_gdays<60?"→면책일할":"")):"")+'">'+(_gdays!=null&&_gdays<90?'<div style="font-size:.6rem;color:#b45309">'+(_gdays<60?'면책':'일할')+' '+_gdays+'일</div>':'')):'<span class="text-muted">-</span>')+'</td>'
+      +'<td class="text-center" style="background:#f7fbff">'+(isProfit?('<input type="date" class="form-control form-control-xs" style="width:118px;font-size:.66rem;padding:1px 3px" value="'+(_joinD||'')+'" onchange="updateSettleRoom('+i+',\'typeChangeDate\',this.value)" title="수익형 가입일 · 면책60일'+(_gdays!=null?(" · 경과"+_gdays+"일"+(_gdays<60?"→면책일할":"")):"")+'">'+(_gdays!=null&&_gdays<90?'<div style="font-size:.6rem;color:#b45309">'+(_gdays<60?'면책':'일할')+' '+_gdays+'일</div>':'')):'<span class="text-muted">-</span>')+'</td>'
       +'<td class="text-center" style="color:'+(maintFee?'#b45309':'#9ca3af')+'">'+maintFee.toLocaleString()+'</td>'
-      +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:85px" id="s9_fix_'+i+'" value="'+(((_ovm&&_ovm.fm!=null)?_ovm.fm:fixedM)||'')+'" placeholder="0" title="customers 투숙객 월숙박료" oninput="updateSettleRoom('+i+',\'fixedMonthly\',this.value)"></td>'
-      +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:95px" id="s9_base_'+i+'" value="'+((r.baseOverride!=null?r.baseOverride:baseStd)||'')+'" placeholder="'+(baseStd||0)+'" oninput="updateSettleBase('+i+',this.value)" title="'+(isManage?'월고정숙박료-유지비':(isProfit?'호실당기준수익×적용비율'+_appRatio+'×'+(room.joinFee===1?'80%':'60%'):''))+' = '+baseStd+' (정산 미반영·기준값)'+'"></td>'
-      +'<td class="win" style="background:#fffaf3"><input type="number" class="form-control form-control-xs win" style="width:80px" id="s9_unpaid_'+i+'" value="'+(r.unpaidPrev||'')+'" placeholder="0" title="누적 미지급금(가산)" oninput="updateSettleRoom('+i+',\'unpaidPrev\',this.value)"></td>'
-      +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_ar_'+i+'" value="'+(ar||'')+'" placeholder="0" oninput="updateSettleRoom('+i+',\'accruedAR\',this.value)"></td>'
-      +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_pre_'+i+'" value="'+(pre||'')+'" placeholder="0" oninput="updateSettleRoom('+i+',\'prepay\',this.value)"></td>'
+      +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:85px" id="s9_fix_'+i+'" value="'+(((_ovm&&_ovm.fm!=null)?_ovm.fm:fixedM)||'')+'" placeholder="0" title="customers 투숙객 월숙박료" onchange="updateSettleRoom('+i+',\'fixedMonthly\',this.value)"></td>'
+      +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:95px" id="s9_base_'+i+'" value="'+((r.baseOverride!=null?r.baseOverride:baseStd)||'')+'" placeholder="'+(baseStd||0)+'" onchange="updateSettleBase('+i+',this.value)" title="'+(isManage?'월고정숙박료-유지비':(isProfit?'호실당기준수익×적용비율'+_appRatio+'×'+(room.joinFee===1?'80%':'60%'):''))+' = '+baseStd+' (정산 미반영·기준값)'+'"></td>'
+      +'<td class="win" style="background:#fffaf3"><input type="number" class="form-control form-control-xs win" style="width:80px" id="s9_unpaid_'+i+'" value="'+(r.unpaidPrev||'')+'" placeholder="0" title="누적 미지급금(가산)" onchange="updateSettleRoom('+i+',\'unpaidPrev\',this.value)"></td>'
+      +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_ar_'+i+'" value="'+(ar||'')+'" placeholder="0" onchange="updateSettleRoom('+i+',\'accruedAR\',this.value)"></td>'
+      +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_pre_'+i+'" value="'+(pre||'')+'" placeholder="0" onchange="updateSettleRoom('+i+',\'prepay\',this.value)"></td>'
       +'<td class="win fw-bold '+paidCls+'">'+paid.toLocaleString()+'</td>'
       +'<td class="win">'+vat.toLocaleString()+'</td>'
       +'<td class="win fw-bold" style="'+finalStyle+'">'+finalTxt+'</td>'
@@ -2154,7 +2154,7 @@ function calcSettle(){
         +'<button class="btn btn-xs btn-outline-primary" style="font-size:.68rem;padding:1px 5px;display:block;width:100%;margin-bottom:2px" onclick="openTypeModal('+i+')">🔄 '+room.type+' '+histLen+'</button>'
         +terminateBtn
         +'</td>'
-      +'<td><input type="text" class="form-control form-control-xs" style="width:85px;font-size:.7rem" id="s9_note_'+i+'" value="'+(r.settleNote||'')+'" oninput="updateSettleRoom('+i+',\'settleNote\',this.value)"></td>'
+      +'<td><input type="text" class="form-control form-control-xs" style="width:85px;font-size:.7rem" id="s9_note_'+i+'" value="'+(r.settleNote||'')+'" onchange="updateSettleRoom('+i+',\'settleNote\',this.value)"></td>'
       +'</tr>';
   });
 
