@@ -395,6 +395,7 @@ body{background:#f0f2f5;margin:0}
             <th rowspan="2">위탁자</th><th rowspan="2">구분</th>
             <th rowspan="2">타입</th><th rowspan="2" class="win">적용비율</th>
             <th rowspan="2" title="수익형: 납입(80%)/면제(60%), 관리형: 납입여부">가입비<br><small style="font-weight:normal;font-size:.65rem;color:#666">(수익/관리)</small></th>
+            <th rowspan="2" title="관리형+가입비형=50,000 / 그 외=0" style="min-width:60px">유지비</th>
             <th rowspan="2" class="win" style="min-width:90px">월고정<br>숙박료</th>
             <th rowspan="2" class="win" style="min-width:100px">기준수익금</th>
             <th rowspan="2" class="win" style="min-width:80px">누적미수금</th>
@@ -416,7 +417,7 @@ body{background:#f0f2f5;margin:0}
         <tbody id="settle-tbody"></tbody>
         <tfoot>
           <tr class="total-row">
-            <td colspan="9">합계</td>
+            <td colspan="10">합계</td>
             <td class="win" id="s9-tot-base"></td>
             <td class="win" id="s9-tot-ar"></td>
             <td class="win" id="s9-tot-pre"></td>
@@ -2022,6 +2023,10 @@ function calcSettle(){
       ? '<span class="badge rounded-pill" style="background:'+joinColor+';color:#fff;font-size:.68rem;cursor:pointer" title="클릭하여 가입비 납입/면제 전환" onclick="toggleJoinFee('+i+')">'+joinLabel+' ✎</span>'
       : '-';
 
+    // 유지비(유지비제외금): 관리형+가입비형 = 50,000 / 그 외 = 0 (※ 계산 미적용, 필드만 생성)
+    var maintFee=(isManage&&room.joinFee===1)?50000:0;
+    if(d.rooms[i]) d.rooms[i].maintFee=maintFee;
+
     // 기준수익금
     var autoBase=0;
     if(isProfit&&!isTerminated) autoBase=Math.round((room.joinFee===1?r80amt:r60amt)*(roomTypeRatio(room)/100));
@@ -2107,6 +2112,7 @@ function calcSettle(){
       +'<td class="text-center">'+((_ovm&&_ovm.t)||room.roomType||room.unitType||room.unit_type||'-')+'</td>'
       +'<td class="win text-center">'+(((_ovm&&_ovm.r!=null)?Number(_ovm.r):(roomTypeRatio(room)/100))).toFixed(2)+'</td>'
       +'<td class="text-center">'+joinBadge+'</td>'
+      +'<td class="text-center" style="color:'+(maintFee?'#b45309':'#9ca3af')+'">'+maintFee.toLocaleString()+'</td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:85px" id="s9_fix_'+i+'" value="'+(((_ovm&&_ovm.fm!=null)?_ovm.fm:fixedM)||'')+'" placeholder="0" title="customers 투숙객 월숙박료" oninput="updateSettleRoom('+i+',\'fixedMonthly\',this.value)"></td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:95px" id="s9_base_'+i+'" value="'+(baseAmt||'')+'" placeholder="'+(autoBase||0)+'" oninput="updateSettleBase('+i+',this.value)" title="'+(isProfit?(room.joinFee===1?'80%':'60%')+'='+autoBase:'')+'"></td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_ar_'+i+'" value="'+(ar||'')+'" placeholder="0" oninput="updateSettleRoom('+i+',\'accruedAR\',this.value)"></td>'
