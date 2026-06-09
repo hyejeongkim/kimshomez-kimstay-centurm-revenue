@@ -2067,7 +2067,7 @@ function calcSettle(){
     var _gdays=null;
     if(isProfit&&!isTerminated&&_joinD){
       _gdays=daysBetween(_parseLocalDate(_joinD), monthEndDate(CY,CM));
-      if(_gdays<60) baseStd=Math.max(0, Math.round(baseStd*(1 - _gdays/30)));            // 경과<60: ×(1−경과일/30)
+      if(_gdays<60) baseStd=0;                                                          // 경과<60: 면책기간 → 지급 없음(0)
       else if(_gdays<90) baseStd=Math.max(0, Math.round(baseStd*((_gdays - 60)/30)));   // 60≤경과<90: ×(경과일−60)/30
       // 경과≥90: 만액(면책 미적용)
     }
