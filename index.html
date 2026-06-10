@@ -2357,6 +2357,11 @@ function updateSettleRoom(i, field, val){
   const strFields=['stayType','stayStart','stayEnd','paid_yn','mgmt_pay_yn','settleNote','typeChangeDate'];
   d.rooms[i][field] = strFields.includes(field) ? val : (parseFloat(val)||0);
   calcSettle();
+  // 09 수정값(미지급금·미수금·선지급금 등)을 04 이체자료·08 이체실행자료에도 즉시 동기화
+  if(['unpaidPrev','accruedAR','prepay','baseOverride'].includes(field)){
+    if(typeof renderTransfer==='function') renderTransfer();
+    if(typeof renderExec==='function') renderExec();
+  }
 }
 
 // 가입비 상태 전환(납입 1 ↔ 면제 0) — 클릭 토글 + 이력 기록
