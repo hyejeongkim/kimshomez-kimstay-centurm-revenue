@@ -745,6 +745,9 @@ function initMonthData(y,m){
 function curfmt(n){ return '₩'+Math.round(n||0).toLocaleString('ko-KR'); }
 function rn(id){ return parseFloat(document.getElementById(id)?.value||0)||0; }
 function inp(id){ return document.getElementById(id); }
+// URL 파라미터 헬퍼(전역) — 정산전송/불러오기에서 access·api 토큰 읽기
+function qp(k){ try{ return new URLSearchParams(location.search).get(k); }catch(_){ return null; } }
+const MEMBERS_ADMIN_URL='https://members.kimshomez.com/admin';
 
 // ============================================================
 // INIT
@@ -1105,11 +1108,16 @@ async function pushSettlementToMembers(){
     const r=await fetch(`${api}/api/settlement/ingest`,{method:'POST',
       headers:{'Content-Type':'application/json','Authorization':'Bearer '+tok},
       body:JSON.stringify({month,rooms,detail,paid_at:new Date().toISOString().slice(0,10)})});
-    const d=await r.json();
-    if(!r.ok){ if(st) st.textContent=''; alert('전송 실패: '+(d.detail||r.status)); return; }
+    let d={}; try{ d=await r.json(); }catch(_){}
+    if(!r.ok){ if(st) st.textContent='✗ 전송 실패'; alert('❌ members 전송 실패\n\n사유: '+(d.detail||('HTTP '+r.status))); return; }
     if(st) st.textContent=`✓ members 전송 ${d.updated}실 (${month})`;
-    alert(`members로 ${d.updated}실 정산을 전송했습니다. (${month})\n관리자 콘솔 '💸 정산·전송'에서 소유자·대리인에게 안내를 보낼 수 있습니다.`);
-  }catch(e){ if(st) st.textContent=''; alert('전송 오류: '+e.message); }
+    const msg=`✅ members 정산전송 완료 (${month})\n`
+      +`· 갱신 호실: ${d.updated}실\n`
+      +`· 명세서 스냅샷 갱신: ${d.snapshot_patched||0}실\n`
+      +`· 명세서 생성/확보: ${d.statements||0}명\n\n`
+      +`지금 members로 이동해 명세서를 확인하시겠습니까?`;
+    if(confirm(msg)){ window.open(MEMBERS_ADMIN_URL,'_blank'); }
+  }catch(e){ if(st) st.textContent='✗ 전송 오류'; alert('❌ members 전송 오류\n\n'+(e&&e.message?e.message:e)+'\n\n(관리자 콘솔의 "📊 정산 사이트" 버튼으로 다시 열어 시도해주세요)'); }
 }
 
 function buildMonthNav(){
