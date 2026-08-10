@@ -1470,8 +1470,8 @@ function calcAll(){
   
   // Room count
   const curRooms = getM(CY,CM).rooms.filter(r=>r.type==='수익형').length;
-  // 호실당 기준수익(C유형 100%): 영업이익 배분 < 확정금(1~6월 20만/7·8월 40만)이면 확정금 보장(부족분=법인부담)
-  const _guar=(CM>=7&&CM<=8)?400000:200000;
+  // 호실당 기준수익(C유형 100%): 영업이익 배분 < 확정금(1~6월 20만/7·8월 50만)이면 확정금 보장(부족분=법인부담)
+  const _guar=(CM>=7&&CM<=8)?500000:200000;
   const baseProfit=curRooms>0 ? Math.max(Math.round(profit/curRooms), _guar) : _guar;
   updateHeaderStats(baseProfit);   // 수익형/관리형 호실수·평균지급금 헤더 갱신
 
