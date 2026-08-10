@@ -89,7 +89,9 @@ body{background:#f0f2f5;margin:0}
       <button class="btn btn-info btn-sm" onclick="applyToCurrentMonth()" title="불러온 회원정보를 '이번 달'에만 반영하고 그 달 상태로 고정">🔄 이 달 회원반영</button>
       <button class="btn btn-outline-info btn-sm" onclick="pullOwners()" title="소유자(이름·은행·계좌)를 마스터에서 실시간 불러와 이 달에 반영·고정">🧑 소유자 불러오기</button>
       <button class="btn btn-outline-info btn-sm" onclick="pullRooms()" title="객실 유형·가입유형·해지를 마스터에서 불러와 이 달에 반영·고정">🏠 객실정보 불러오기</button>
-      <button class="btn btn-outline-success btn-sm" onclick="pullMgmt()" title="관리비(수익형 산출액)를 불러와 변동비-관리비에 반영">🧾 관리비 불러오기</button>
+      <button class="btn btn-outline-success btn-sm" onclick="pullMgmt()" title="관리비(전체 위탁객실 산출액)를 불러와 변동비-관리비에 반영">🧾 관리비 불러오기</button>
+      <button class="btn btn-outline-success btn-sm" onclick="pullSalary()" title="payroll 급여지급 내역(청소·월급·일당)을 불러와 변동비-하우스키핑에 반영">👷 급여지급 불러오기</button>
+      <button class="btn btn-outline-success btn-sm" onclick="pullSupplies()" title="payroll 비품구매 내역을 불러와 변동비2-어메니티에 반영">📦 비품구매 불러오기</button>
       <button class="btn btn-outline-secondary btn-sm" onclick="pullTenants()" title="투숙객 숙박료(장박/단박)를 불러와 이 달에 반영">🛏 투숙객 불러오기</button>
       <button class="btn btn-outline-dark btn-sm" onclick="pullMaster()" title="centralcenter 객실마스터(타입·판매가) + 청소대상(수익형·장단기 미입실)을 불러와 반영">🏷 객실마스터·청소대상 불러오기</button>
       <button class="btn btn-warning btn-sm fw-bold" onclick="openTypeMgr()" title="객실 타입(A~L)별 수익률 입력 및 객실별 타입 지정">🏷️ 객실타입</button>
@@ -982,18 +984,56 @@ async function pullRooms(){
 }
 async function pullMgmt(){
   const mk=_mk();
-  if(!confirm(`${mk} 관리비(수익형 산출액 합계)를 불러와 변동비-관리비에 반영할까요?`)) return;
+  if(!confirm(`${mk} 관리비(전체 위탁객실 산출액 합계)를 불러와 변동비-관리비에 반영할까요?`)) return;
   try{ const j=await _pullJSON('mgmt','&month='+mk);
     if(!j.exists){ alert(`${mk} 관리비 자료가 없습니다(관리단 업로드 필요).`); return; }
     const d=getM(CY,CM); if(!d.costs.mgmt1) d.costs.mgmt1={amt:0,qty:1};
-    const su_cnt = (j.su_count!=null)?j.su_count : (j.su_rooms?j.su_rooms.length:0);
-    const mlbl = '관리비(수익형 '+su_cnt+'호실)';
-    d.costs.mgmt1.amt=j.su_total; d.costs.mgmt1.qty=1; d.costs.mgmt1.label=mlbl;
+    // 전체 위탁중 객실 관리비(all_total) 우선, 없으면 수익형(su_total) 폴백
+    const cnt = (j.all_count!=null)?j.all_count : (j.su_count!=null?j.su_count:0);
+    const amt = (j.all_total!=null)?j.all_total : j.su_total;
+    const mlbl = '관리비(위탁 '+cnt+'호실 전체)';
+    d.costs.mgmt1.amt=amt; d.costs.mgmt1.qty=1; d.costs.mgmt1.label=mlbl;
     const _le=inp('lbl_mgmt1'); if(_le) _le.value=mlbl;
     if(typeof populateCostInputs==='function') populateCostInputs(d);
     if(typeof calcAll==='function')calcAll(); saveMonthData();
-    alert(`관리비(수익형 ${su_cnt}호실 산출액 합) ${Number(j.su_total).toLocaleString()}원 반영(${mk})`);
+    alert(`관리비(위탁 ${cnt}호실 전체 산출액 합) ${Number(amt).toLocaleString()}원 반영(${mk})`);
   }catch(e){ alert('관리비 불러오기 실패: '+e.message); }
+}
+// payroll 급여지급 내역 월별 불러오기 → 변동비 하우스키핑(메이드+세탁)
+async function pullSalary(){
+  const mk=_mk();
+  if(!confirm(`${mk} payroll 급여지급 내역(청소·월급·일당 전체)을 불러와 변동비-하우스키핑에 반영할까요?`)) return;
+  try{ const j=await _pullJSON('labor','&month='+mk);
+    if(!j.exists){ alert(`${mk} payroll 급여 자료가 없습니다.`); return; }
+    const d=getM(CY,CM);
+    const laundry = Number(j.laundry_amount||0);
+    const total = Number(j.payroll_total!=null?j.payroll_total:j.total||0);
+    const maid = Math.max(0, total - laundry);   // 청소+월급+일당
+    if(!d.costs.hk_lee) d.costs.hk_lee={amt:0,qty:1};
+    if(!d.costs.hk_joo) d.costs.hk_joo={amt:0,qty:1};
+    d.costs.hk_lee.amt=maid; d.costs.hk_lee.qty=1; d.costs.hk_lee.label='객실점검-메이드(payroll 급여)';
+    d.costs.hk_joo.amt=laundry; d.costs.hk_joo.qty=1; d.costs.hk_joo.label='객실점검-세탁(payroll)';
+    ['hk_lee','hk_joo'].forEach(k=>{ const e=inp('lbl_'+k); if(e) e.value=d.costs[k].label; });
+    if(typeof populateCostInputs==='function') populateCostInputs(d);
+    if(typeof calcAll==='function')calcAll(); saveMonthData();
+    alert(`급여지급 반영(${mk}) — 하우스키핑 메이드 ${maid.toLocaleString()}원 + 세탁 ${laundry.toLocaleString()}원 = 총 ${total.toLocaleString()}원`);
+  }catch(e){ alert('급여지급 불러오기 실패: '+e.message); }
+}
+// payroll 비품구매 내역 월별 불러오기 → 변동비2 어메니티(비품)
+async function pullSupplies(){
+  const mk=_mk();
+  if(!confirm(`${mk} payroll 비품구매 내역을 불러와 변동비2-어메니티(비품)에 반영할까요?`)) return;
+  try{ const j=await _pullJSON('labor','&month='+mk);
+    if(!j.exists){ alert(`${mk} payroll 자료가 없습니다.`); return; }
+    const sup = Number(j.supplies_total||0);
+    const d=getM(CY,CM);
+    if(!d.costs.am1) d.costs.am1={amt:0,qty:1};
+    d.costs.am1.amt=sup; d.costs.am1.qty=1; d.costs.am1.label='어메니티/비품(payroll 구매)';
+    const e=inp('lbl_am1'); if(e) e.value=d.costs.am1.label;
+    if(typeof populateCostInputs==='function') populateCostInputs(d);
+    if(typeof calcAll==='function')calcAll(); saveMonthData();
+    alert(`비품구매 반영(${mk}) — ${sup.toLocaleString()}원`);
+  }catch(e){ alert('비품구매 불러오기 실패: '+e.message); }
 }
 async function calcCashRevenue(){
   if(!confirm(`${CY}.${CM} 수익형 장/단박 숙박료로 현금매출_세금계산서를 계산해 입력할까요?\n(숙박료(부가세포함) ÷ 1.1 × 80%)`)) return;
