@@ -96,8 +96,12 @@ body{background:#f0f2f5;margin:0}
       <button class="btn btn-outline-light btn-sm" onclick="exportSettlementJSON()" title="이번 달 09.정산배분을 JSON으로 내보내 centermmark에 반영">📤 정산 내보내기</button>
       <button class="btn btn-success btn-sm fw-bold" onclick="pushSettlementToMembers()" title="이번 달 정산(지급액)을 members로 자동 전송 → 소유자/대리인 안내 발송 준비">🚀 members로 정산전송</button>
       <button class="btn btn-outline-light btn-sm" onclick="saveAllData()">💾 저장</button>
+      <button class="btn btn-outline-warning btn-sm" onclick="setRevAdminKey()" title="서버 영구저장을 켜는 관리자 키 설정(최초 1회)">🔑 관리자키</button>
+      <button class="btn btn-outline-info btn-sm" id="btnPatchSheet" onclick="saveSheetOnly()" title="현재 화면 데이터만 서버에 병합 저장(다른 시트 보존)">🧩 시트 임시저장</button>
+      <button class="btn btn-danger btn-sm fw-bold" id="btnConfirm" onclick="confirmMonth()" title="이 달 정산을 최종 확정·잠금(이후 덮어쓰기 차단, 데이터 보호)">🔒 정산확정</button>
       <button class="btn btn-outline-light btn-sm" onclick="resetMonth()">🔄 초기화</button>
       <span id="cmStatus" class="text-white small"></span>
+      <span id="lockStatus" class="small fw-bold"></span>
       </span><!-- /adminTools -->
       <span class="text-white-50 mx-1" style="font-size:.8rem">|</span>
       <a class="btn btn-light btn-sm fw-bold" href="https://members.kimshomez.com" title="내 객실정보(위탁회원 포털)로 이동">🏠 나의 객실정보</a>
@@ -1211,6 +1215,7 @@ function loadMonth(){
 
   // ★ 서버(마스터) 동기화 — 백엔드 가동 시 서버 데이터로 갱신·재렌더(미가동 시 무시)
   pullMonthFromServer(y, m);
+  if(typeof refreshLockStatus==='function') refreshLockStatus();   // 잠금(정산확정) 상태 표시
 
   // ★ 이 달의 객실 메타(유형/가입비/해지)를 로드 → ROOMS 를 이 달 상태로 고정
   loadRoomMeta(y, m);
@@ -2505,7 +2510,7 @@ function updateRoomExec(i,field,val){
 const REV_API = (location.origin && /^https?:/.test(location.origin)) ? location.origin : '';
 let _revSynced = {};
 function revAdminKey(){ return localStorage.getItem('kims_rev_admin_key')||''; }
-function setRevAdminKey(){ const k=prompt('revenue 서버 관리자 키 입력(정산 저장용):', revAdminKey()); if(k!==null){ localStorage.setItem('kims_rev_admin_key', k.trim()); alert('관리자 키 저장됨'); } }
+function setRevAdminKey(){ const k=prompt('revenue 서버 관리자 키 입력(정산 서버 영구저장용):', revAdminKey()); if(k!==null){ localStorage.setItem('kims_rev_admin_key', k.trim()); alert('관리자 키 저장됨 — 이제 저장 시 서버에 영구 보존됩니다.'); if(typeof refreshLockStatus==='function') refreshLockStatus(); } }
 async function pullMonthFromServer(y,m){
   if(!REV_API) return;
   const mk = y+'-'+String(m).padStart(2,'0');
@@ -2525,10 +2530,69 @@ async function pushMonthToServer(y,m){
   const key = revAdminKey(); if(!key) return;            // 관리자 키 없으면 서버 저장 생략
   const mk = y+'-'+String(m).padStart(2,'0');
   try{
-    await fetch(REV_API+'/api/month/'+mk, {method:'PUT',
+    const r = await fetch(REV_API+'/api/month/'+mk, {method:'PUT',
       headers:{'Content-Type':'application/json','X-Admin-Key':key},
       body: JSON.stringify({data: getM(y,m)})});
-  }catch(e){ /* 무시 */ }
+    if(r.status===409){ const j=await r.json().catch(()=>({})); if(typeof toast==='function') toast('서버 저장 거부: '+(j.detail||'보호됨'),'warning'); return {ok:false,locked:true}; }
+    if(r.status===401){ if(typeof toast==='function') toast('관리자 키가 필요/틀립니다. [🔑 관리자키]에서 설정하세요.','warning'); return {ok:false}; }
+    return {ok:r.ok};
+  }catch(e){ return {ok:false}; }
+}
+
+// ── 현재 달 잠금상태 표시 + 저장버튼 제어 ──
+async function refreshLockStatus(){
+  const el=document.getElementById('lockStatus'); if(!el||!REV_API) return;
+  const mk = CY+'-'+String(CM).padStart(2,'0');
+  try{
+    const j = await (await fetch(REV_API+'/api/month/'+mk,{cache:'no-store'})).json();
+    const locked = !!(j&&j.locked);
+    el.innerHTML = locked ? '<span style="color:#ffd351">🔒 정산확정됨(잠금)</span>' : (revAdminKey()?'<span style="color:#8fe3a0">🟢 서버저장 ON</span>':'<span style="color:#ffb3b3">⚠ 관리자키 미설정(localStorage만)</span>');
+    const bc=document.getElementById('btnConfirm'); if(bc){ bc.textContent = locked?'🔓 확정해제':'🔒 정산확정'; bc.onclick = locked?unlockMonth:confirmMonth; bc.className = 'btn btn-sm fw-bold '+(locked?'btn-warning':'btn-danger'); }
+  }catch(e){ /* 서버 미가동 */ }
+}
+
+// ── 시트(현재 데이터) 임시저장: 최상위 키별로 서버에 병합(다른 데이터 보존) ──
+async function saveSheetOnly(){
+  if(!REV_API){ toast&&toast('서버 미연결','warning'); return; }
+  const key = revAdminKey(); if(!key){ toast&&toast('먼저 [🔑 관리자키]를 설정하세요','warning'); return; }
+  collectCurrentInputs();
+  const mk = CY+'-'+String(CM).padStart(2,'0');
+  const d = getM(CY,CM)||{};
+  let ok=0, fail=0;
+  for(const k of Object.keys(d)){
+    try{
+      const r=await fetch(REV_API+'/api/month/'+mk+'/sheet',{method:'PATCH',
+        headers:{'Content-Type':'application/json','X-Admin-Key':key},
+        body:JSON.stringify({sheet:k, value:d[k]})});
+      if(r.ok) ok++; else fail++;
+    }catch(e){ fail++; }
+  }
+  localStorage.setItem('kims_'+CY+'_'+CM, JSON.stringify(d));
+  toast&&toast('시트 임시저장 완료('+ok+'개 병합'+(fail?(' / 거부 '+fail):'')+') — 다른 데이터는 보존됩니다', fail?'warning':'success');
+  refreshLockStatus();
+}
+
+// ── 정산확정(최종 잠금) ──
+async function confirmMonth(){
+  const mk = CY+'-'+String(CM).padStart(2,'0');
+  const key = revAdminKey(); if(!key){ toast&&toast('먼저 [🔑 관리자키]를 설정하세요','warning'); return; }
+  if(!confirm(mk+' 정산을 최종 확정·잠금할까요?\n확정 후에는 덮어쓰기가 차단되어 데이터가 보호됩니다.(해제 가능)')) return;
+  if(typeof saveAllData==='function') saveAllData(); else saveMonthData();
+  await pushMonthToServer(CY,CM);          // 확정 전 현재본 저장
+  try{
+    const r=await fetch(REV_API+'/api/month/'+mk+'/confirm',{method:'POST',headers:{'X-Admin-Key':key}});
+    const j=await r.json();
+    if(r.ok){ toast&&toast(mk+' 정산확정 완료 🔒 (데이터 잠금·보호)','success'); }
+    else { toast&&toast('확정 실패: '+(j.detail||r.status),'danger'); }
+  }catch(e){ toast&&toast('확정 오류: '+e.message,'danger'); }
+  refreshLockStatus();
+}
+async function unlockMonth(){
+  const mk = CY+'-'+String(CM).padStart(2,'0');
+  const key = revAdminKey(); if(!key){ toast&&toast('관리자키 필요','warning'); return; }
+  if(!confirm(mk+' 정산확정을 해제할까요? (다시 수정·저장 가능)')) return;
+  try{ await fetch(REV_API+'/api/month/'+mk+'/unlock',{method:'POST',headers:{'X-Admin-Key':key}}); toast&&toast(mk+' 확정 해제됨','info'); }catch(e){}
+  refreshLockStatus();
 }
 
 function saveMonthData(){
