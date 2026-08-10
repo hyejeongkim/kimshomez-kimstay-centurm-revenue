@@ -103,6 +103,7 @@ body{background:#f0f2f5;margin:0}
       <button class="btn btn-success btn-sm fw-bold" onclick="pushSettlementToMembers()" title="이번 달 정산(지급액)을 members로 자동 전송 → 소유자/대리인 안내 발송 준비">🚀 members로 정산전송</button>
       <button class="btn btn-outline-light btn-sm" onclick="saveAllData()">💾 저장</button>
       <button class="btn btn-outline-warning btn-sm" onclick="setRevAdminKey()" title="서버 영구저장을 켜는 관리자 키 설정(최초 1회)">🔑 관리자키</button>
+      <button class="btn btn-info btn-sm" onclick="hydrateAllFromServer(false)" title="서버에 저장된 모든 월(정산 확정본)을 불러와 성과보고·1분기 추가수익금을 복구">☁️ 서버 전체 복구</button>
       <button class="btn btn-outline-info btn-sm" id="btnPatchSheet" onclick="saveSheetOnly()" title="현재 화면 데이터만 서버에 병합 저장(다른 시트 보존)">🧩 시트 임시저장</button>
       <button class="btn btn-danger btn-sm fw-bold" id="btnConfirm" onclick="confirmMonth()" title="이 달 정산을 최종 확정·잠금(이후 덮어쓰기 차단, 데이터 보호)">🔒 정산확정</button>
       <button class="btn btn-outline-light btn-sm" onclick="resetMonth()">🔄 초기화</button>
@@ -899,9 +900,8 @@ function _migrateRoomTypes(){
 
 // 1회성: 4월·6월 미확정(스트레이 기본값) 데이터 정리 → 성과보고에서 0(–)으로 표기
 function _cleanStrayMonths(){
-  if(localStorage.getItem('kims_clean_46_v1')) return;
-  localStorage.setItem('kims_clean_46_v1','1');
-  ['kims_2026_4','kims_2026_6'].forEach(function(k){ localStorage.removeItem(k); });
+  // (구) 4·6월 스트레이 데이터 제거 로직 — 6월이 정식 확정데이터가 되어 폐기(삭제 금지).
+  // 과거월은 hydrateAllFromServer(서버 확정본)로 복구한다.
 }
 
 function init(){
@@ -915,6 +915,8 @@ function init(){
   buildMonthNav();
   buildCostSheets();
   loadMonth();
+  // 서버 확정본으로 과거월 자동 복구(성과보고·1분기) — 불완전 서버로 양호 로컬은 덮지 않음(보호)
+  if(typeof hydrateAllFromServer==='function') setTimeout(function(){ hydrateAllFromServer(true); }, 1200);
 }
 
 // ===== centermmark(회원 포털) 연동 — '실시간 아님', 버튼 누를 때만 '현재 월'에 반영 =====
@@ -2688,6 +2690,33 @@ async function pushMonthToServer(y,m){
     if(r.status===401){ if(typeof toast==='function') toast('관리자 키가 필요/틀립니다. [🔑 관리자키]에서 설정하세요.','warning'); return {ok:false}; }
     return {ok:r.ok};
   }catch(e){ return {ok:false}; }
+}
+
+// 서버의 모든 월(확정본)을 localStorage로 복구 — 성과보고·1분기 정산은 과거월 localStorage를 직접 읽으므로 필요
+async function hydrateAllFromServer(silent){
+  if(!REV_API){ if(!silent) alert('서버 미연결'); return 0; }
+  let n=0; const restored=[];
+  try{
+    const list = await (await fetch(REV_API+'/api/months',{cache:'no-store'})).json();
+    for(const it of (list.months||[])){
+      const mk=it.month; if(!/^\d{4}-\d{2}$/.test(mk||'')) continue;
+      const y=parseInt(mk.slice(0,4),10), m=parseInt(mk.slice(5,7),10);
+      const r=await fetch(REV_API+'/api/month/'+mk,{cache:'no-store'}); if(!r.ok) continue;
+      const j=await r.json(); if(!(j&&j.exists&&j.data)) continue;
+      const srvHasRooms=(j.data.rooms||[]).some(x=>x&&(x.final||x.type));
+      const localRaw=localStorage.getItem('kims_'+y+'_'+m);
+      let localHasRooms=false; if(localRaw){ try{ const ld=JSON.parse(localRaw); localHasRooms=(ld.rooms||[]).some(x=>x&&(x.final||x.type)); }catch(e){} }
+      if(!srvHasRooms && localHasRooms) continue;   // 불완전 서버로 양호 로컬을 덮지 않음(보호)
+      localStorage.setItem('kims_'+y+'_'+m, JSON.stringify(j.data));
+      if(DATA[y]) DATA[y][m]=j.data;
+      n++; restored.push(mk);
+    }
+  }catch(e){ if(!silent) alert('서버 복구 실패: '+e.message); return 0; }
+  if(typeof calcAll==='function')calcAll();
+  if(typeof renderPerf==='function')renderPerf();
+  if(typeof renderCurrentSheet==='function')renderCurrentSheet();
+  if(!silent) alert('서버에서 '+n+'개월 복구 완료: '+restored.join(', ')+'\n성과보고·1분기 추가수익금이 갱신되었습니다.');
+  return n;
 }
 
 // ── 현재 달 잠금상태 표시 + 저장버튼 제어 ──
