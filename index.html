@@ -94,6 +94,7 @@ body{background:#f0f2f5;margin:0}
       <button class="btn btn-outline-success btn-sm" onclick="pullSupplies()" title="payroll 비품구매 내역을 불러와 변동비2-어메니티에 반영">📦 비품구매 불러오기</button>
       <button class="btn btn-outline-secondary btn-sm" onclick="pullTenants()" title="투숙객 숙박료(장박/단박)를 불러와 이 달에 반영">🛏 투숙객 불러오기</button>
       <button class="btn btn-outline-secondary btn-sm" onclick="pullWalkinLongstay()" title="수익형 장박 투숙형의 숙박비+관리비를 02.판매자료 워크인(현장) 매출에 반영">🧳 워크인(수익형 장박) 불러오기</button>
+      <button class="btn btn-outline-secondary btn-sm" onclick="pullMgmtCashReceipt()" title="관리형 호실의 관리비 청구액을 02.판매자료 현금매출_현금영수증에 반영">🧾 관리형 관리비→현금영수증</button>
       <button class="btn btn-outline-dark btn-sm" onclick="pullMaster()" title="centralcenter 객실마스터(타입·판매가) + 청소대상(수익형·장단기 미입실)을 불러와 반영">🏷 객실마스터·청소대상 불러오기</button>
       <button class="btn btn-outline-warning btn-sm" onclick="pullPrepayCarry()" title="전달 04.이체자료의 선지급/미지급/누적미수를 불러와 소급 적용 — 누적선지급은 이번달 수익금과 상계 후 잔여를 이월">📥 전달 선지급/미지급 불러오기</button>
       <button class="btn btn-outline-danger btn-sm" onclick="pullRepairs()" title="AS(수리) 비용 — 회사부담은 특수비, 소유주부담은 이체자료 선지급(수익금 차감)으로 반영">🔧 AS비용 불러오기</button>
@@ -981,8 +982,8 @@ async function pullOwners(){
   }catch(e){ alert('소유자 불러오기 실패: '+e.message); }
 }
 async function pullRooms(){
-  if(!confirm(`${CY}.${CM}에 최신 객실정보(유형·가입유형·해지)를 불러와 반영·고정할까요?`)) return;
-  try{ const j=await _pullJSON('rooms'); let n=0;
+  if(!confirm(`${CY}.${CM}에 최신 객실정보(유형·가입유형·해지)를 불러와 반영·고정할까요?\n(유형전환 호실은 이 달 기준 유효유형으로 반영 — 예: 418호 8/3까지 관리형)`)) return;
+  try{ const j=await _pullJSON('rooms','&month='+_mk()); let n=0;
     j.rooms.forEach(o=>{ const rm=_roomByRm(o.rm); if(rm){ rm.type=o.type||rm.type; rm.joinFee=o.joinFee; rm.unitType=o.unitType||rm.unitType; if(o.unitType){ rm.roomType=o.unitType; } if(o.typeChangeDate){ rm.typeChangeDate=o.typeChangeDate; } rm.terminated=!!o.terminated; rm.terminatedDate=o.terminatedDate||''; n++; } });
     saveRoomMeta(CY,CM); if(typeof calcAll==='function')calcAll(); if(typeof renderCurrentSheet==='function')renderCurrentSheet();
     alert(`객실정보 ${n}실 반영·고정(${CY}.${CM})`);
@@ -1152,6 +1153,24 @@ async function pullWalkinLongstay(){
     if(typeof renderCurrentSheet==='function')renderCurrentSheet();
     alert(`워크인(현장) 반영(${mk}) — 수익형 장박 ${j.count}실\n· 숙박비 ${rentNet.toLocaleString()}원${j.fee_free?'(수수료면제)':'(15%공제)'}\n· 관리비 ${mgmt.toLocaleString()}원\n= 합계 ${amt.toLocaleString()}원`);
   }catch(e){ alert('워크인 불러오기 실패: '+e.message); }
+}
+// ===== 관리형 관리비 청구 → 현금매출_현금영수증 =====
+async function pullMgmtCashReceipt(){
+  const mk=_mk();
+  if(!confirm(`${mk} 관리형 호실의 관리비 청구액을 불러와 02.판매자료 '현금매출_현금영수증'에 반영할까요?`)) return;
+  try{ const j=await _pullJSON('mgmt','&month='+mk);
+    if(!j.exists){ alert(`${mk} 관리비 자료가 없습니다(관리단 업로드 필요).`); return; }
+    const detail=j.all_detail||[];   // 전체 위탁 호실별 관리비 청구액
+    let sum=0, cnt=0;
+    detail.forEach(o=>{ const room=_roomByRm(o.rm); if(room && room.type==='관리형' && !excludeRoomFromSettle(room)){ sum+=Number(o.total||0); cnt++; } });
+    const d=getM(CY,CM);
+    d.field['현금매출_현금영수증']=sum;
+    const el=inp('field_'+'현금매출_현금영수증'.replace(/[^a-zA-Z0-9가-힣]/g,'_'));
+    if(el) el.value=sum;
+    if(typeof calcAll==='function')calcAll(); saveMonthData();
+    if(typeof renderCurrentSheet==='function')renderCurrentSheet();
+    alert(`현금매출_현금영수증 반영(${mk}) — 관리형 ${cnt}실 관리비 합계 ${sum.toLocaleString()}원`);
+  }catch(e){ alert('관리형 관리비 불러오기 실패: '+e.message); }
 }
 
 function importCentermmark(file){
