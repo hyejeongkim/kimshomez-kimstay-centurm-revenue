@@ -93,7 +93,10 @@ body{background:#f0f2f5;margin:0}
       <button class="btn btn-outline-success btn-sm" onclick="pullSalary()" title="payroll 급여지급 내역(청소·월급·일당)을 불러와 변동비-하우스키핑에 반영">👷 급여지급 불러오기</button>
       <button class="btn btn-outline-success btn-sm" onclick="pullSupplies()" title="payroll 비품구매 내역을 불러와 변동비2-어메니티에 반영">📦 비품구매 불러오기</button>
       <button class="btn btn-outline-secondary btn-sm" onclick="pullTenants()" title="투숙객 숙박료(장박/단박)를 불러와 이 달에 반영">🛏 투숙객 불러오기</button>
+      <button class="btn btn-outline-secondary btn-sm" onclick="pullWalkinLongstay()" title="수익형 장박 투숙형의 숙박비+관리비를 02.판매자료 워크인(현장) 매출에 반영">🧳 워크인(수익형 장박) 불러오기</button>
       <button class="btn btn-outline-dark btn-sm" onclick="pullMaster()" title="centralcenter 객실마스터(타입·판매가) + 청소대상(수익형·장단기 미입실)을 불러와 반영">🏷 객실마스터·청소대상 불러오기</button>
+      <button class="btn btn-outline-warning btn-sm" onclick="pullPrepayCarry()" title="전달 04.이체자료의 선지급/미지급/누적미수를 불러와 소급 적용 — 누적선지급은 이번달 수익금과 상계 후 잔여를 이월">📥 전달 선지급/미지급 불러오기</button>
+      <button class="btn btn-outline-danger btn-sm" onclick="pullRepairs()" title="AS(수리) 비용 — 회사부담은 특수비, 소유주부담은 이체자료 선지급(수익금 차감)으로 반영">🔧 AS비용 불러오기</button>
       <button class="btn btn-warning btn-sm fw-bold" onclick="openTypeMgr()" title="객실 타입(A~L)별 수익률 입력 및 객실별 타입 지정">🏷️ 객실타입</button>
       <button class="btn btn-outline-light btn-sm" onclick="exportSettlementJSON()" title="이번 달 09.정산배분을 JSON으로 내보내 centermmark에 반영">📤 정산 내보내기</button>
       <button class="btn btn-success btn-sm fw-bold" onclick="pushSettlementToMembers()" title="이번 달 정산(지급액)을 members로 자동 전송 → 소유자/대리인 안내 발송 준비">🚀 members로 정산전송</button>
@@ -704,6 +707,9 @@ const SPECIAL_SECS = [
   {title:'18. 기타', key:'etc_sp', items:[
     {label:'기타', key:'etcsp1', amt:0, qty:1},
   ]},
+  {title:'19. AS/수리비(회사부담)', key:'as_repair', items:[
+    {label:'AS/수리비(회사부담)', key:'asrep1', amt:0, qty:1},
+  ]},
 ];
 
 // ============================================================
@@ -1072,6 +1078,80 @@ async function pullTenants(){
     saveMonthData(); if(typeof calcAll==='function')calcAll(); if(typeof renderCurrentSheet==='function')renderCurrentSheet();
     alert(`투숙객 숙박료 ${n}실 반영(${CY}.${CM})`);
   }catch(e){ alert('투숙객 불러오기 실패: '+e.message); }
+}
+// ===== 전달(전월) 04.이체자료 선지급/미지급/미수 불러오기 → 이번달 소급 적용 =====
+// 누적선지급금은 이번달 수익금과 상계 후 잔여(prepayRemain)를 이번달 선지급금으로 이월한다.
+function _prevYM(){ let y=CY, m=CM-1; if(m<1){ m=12; y--; } return {y:y, m:m}; }
+function pullPrepayCarry(){
+  const pm=_prevYM();
+  if(!confirm(`전달(${pm.y}.${pm.m}) 04.이체자료의 선지급금·미지급금·누적미수금을 불러와 이번달(${CY}.${CM})에 소급 적용할까요?\n· 누적선지급금은 이번달 수익금과 상계 후 잔여가 이월됩니다\n· 미지급금(미지급 잔여)도 함께 이월됩니다`)) return;
+  const raw=localStorage.getItem('kims_'+pm.y+'_'+pm.m);
+  if(!raw){ alert(`전달(${pm.y}.${pm.m}) 정산 데이터가 없습니다. 해당 월을 먼저 저장하세요.`); return; }
+  let prev; try{ prev=JSON.parse(raw); }catch(e){ alert('전달 데이터 파싱 오류'); return; }
+  if(!prev.rooms){ alert('전달 데이터에 호실정보가 없습니다.'); return; }
+  // 전달은 ROOMS 순서(인덱스)와 동일하게 저장됨 → 호실번호로 매핑
+  const prevByRm={}; prev.rooms.forEach((pr,idx)=>{ const rm=(prev._rmOrder&&prev._rmOrder[idx])||(ROOMS[idx]&&ROOMS[idx].rm); if(rm!=null) prevByRm[parseInt(rm,10)]=pr; });
+  const d=getM(CY,CM);
+  let nPre=0,nUnpaid=0,nAr=0,sumPre=0;
+  d.rooms.forEach((r,i)=>{
+    const room=ROOMS[i]; if(!room||excludeRoomFromSettle(room)) return;
+    const pr=prevByRm[parseInt(room.rm,10)]; if(!pr) return;
+    // 선지급 잔여: 전달 상계 후 잔여(prepayRemain) 우선, 없으면 전달 선지급 원값
+    const remain=(pr.prepayRemain!=null)?Number(pr.prepayRemain):Number(pr.prepay||0);
+    if(remain>0){ r.prepay=remain; nPre++; sumPre+=remain; }
+    // 미지급 잔여: unpaidRemain 우선, 없으면 전달 미지급 원값
+    const unpaidR=(pr.unpaidRemain!=null)?Number(pr.unpaidRemain):Number(pr.unpaidPrev||0);
+    if(unpaidR>0){ r.unpaidPrev=unpaidR; nUnpaid++; }
+    // 누적미수금: 전달 누적미수금 이월
+    const arR=Number(pr.accruedAR||0);
+    if(arR>0){ r.accruedAR=arR; nAr++; }
+  });
+  saveMonthData(); if(typeof calcSettle==='function')calcSettle();
+  if(typeof renderCurrentSheet==='function')renderCurrentSheet();
+  alert(`전달(${pm.y}.${pm.m}) 이월 반영 완료\n· 선지급 잔여 ${nPre}실(합 ${sumPre.toLocaleString()}원)\n· 미지급 ${nUnpaid}실 · 누적미수 ${nAr}실\n이번달 수익금과 상계 후 잔여가 자동 계산됩니다.`);
+}
+// ===== AS(수리) 비용 불러오기: 회사부담→특수비, 소유주부담→이체자료 선지급 =====
+async function pullRepairs(){
+  const mk=_mk();
+  if(!confirm(`${mk} AS(수리) 비용을 불러올까요?\n· 회사부담분 → 특수비(AS/수리비)\n· 소유주부담분 → 각 호실 이체자료 선지급(수익금 차감)`)) return;
+  try{ const j=await _pullJSON('repairs','&month='+mk);
+    if(!j.exists){ alert(`${mk} AS(수리) 내역이 없습니다.`); return; }
+    const d=getM(CY,CM);
+    // 1) 회사부담 → 특수비 AS/수리비(asrep1)
+    if(!d.costs.asrep1) d.costs.asrep1={amt:0,qty:1};
+    d.costs.asrep1.amt=Number(j.company_total||0); d.costs.asrep1.qty=1; d.costs.asrep1.label='AS/수리비(회사부담)';
+    const le=inp('lbl_asrep1'); if(le) le.value=d.costs.asrep1.label;
+    // 2) 소유주부담 → 각 호실 선지급(asPrepay) — 원본에서 재계산(반복 클릭 시 중복가산 방지)
+    const byRm={}; (j.rooms||[]).forEach(o=>byRm[parseInt(o.rm,10)]=o);
+    d.rooms.forEach((r,i)=>{ const room=ROOMS[i]; if(!room){ return; }
+      const o=byRm[parseInt(room.rm,10)];
+      r.asPrepay=o?Number(o.owner_amt||0):0;
+      if(o&&o.owner_amt>0){ r.asNote='AS '+(o.desc||'')+' 소유주부담 '+Number(o.owner_amt).toLocaleString()+'원'; }
+    });
+    if(typeof populateCostInputs==='function') populateCostInputs(d);
+    if(typeof calcSettle==='function')calcSettle();
+    if(typeof calcAll==='function')calcAll(); saveMonthData();
+    if(typeof renderCurrentSheet==='function')renderCurrentSheet();
+    alert(`AS 반영(${mk}) — ${j.count}호실\n· 회사부담(특수비) ${Number(j.company_total||0).toLocaleString()}원\n· 소유주부담(선지급) ${Number(j.owner_total||0).toLocaleString()}원`);
+  }catch(e){ alert('AS 불러오기 실패: '+e.message); }
+}
+// ===== 워크인(현장) 매출: 수익형 장박의 숙박비+관리비 불러오기 =====
+async function pullWalkinLongstay(){
+  const mk=_mk();
+  if(!confirm(`${mk} 수익형 장박 투숙형의 숙박비+관리비를 불러와 02.판매자료 '워크인(현장)' 매출에 반영할까요?`)) return;
+  try{ const j=await _pullJSON('longstay','&month='+mk);
+    if(!j.exists){ alert(`${mk} 수익형 장박 내역이 없습니다.`); return; }
+    const d=getM(CY,CM);
+    const rentNet=Number(j.rent_net!=null?j.rent_net:j.rent_total||0);  // 6·7·8월=전액, 그 외=×0.85
+    const mgmt=Number(j.mgmt_total||0);
+    const amt=rentNet+mgmt;
+    d.field['워크인(현장)']=amt;
+    const el=inp('field_'+'워크인(현장)'.replace(/[^a-zA-Z0-9가-힣]/g,'_'));
+    if(el) el.value=amt;
+    if(typeof calcAll==='function')calcAll(); saveMonthData();
+    if(typeof renderCurrentSheet==='function')renderCurrentSheet();
+    alert(`워크인(현장) 반영(${mk}) — 수익형 장박 ${j.count}실\n· 숙박비 ${rentNet.toLocaleString()}원${j.fee_free?'(수수료면제)':'(15%공제)'}\n· 관리비 ${mgmt.toLocaleString()}원\n= 합계 ${amt.toLocaleString()}원`);
+  }catch(e){ alert('워크인 불러오기 실패: '+e.message); }
 }
 
 function importCentermmark(file){
@@ -1508,8 +1588,8 @@ function calcAll(){
   sb('sb-cost',totalCost,'text-danger');
   sb('sb-profit',profit,profit>=0?'text-profit':'text-loss');
   
-  // Room count
-  const curRooms = getM(CY,CM).rooms.filter(r=>r.type==='수익형').length;
+  // Room count — 정산대상 수익형 호실수(자가사용·사전해지 제외). 09/성과보고 카운트와 동일기준
+  const curRooms = settleRoomsByType().prof.length;
   // 호실당 기준수익(C유형 100%): 영업이익 배분 < 확정금(1~6월 20만/7·8월 50만)이면 확정금 보장(부족분=법인부담)
   const _guar=(CM>=7&&CM<=8)?500000:200000;
   const baseProfit=curRooms>0 ? Math.max(Math.round(profit/curRooms), _guar) : _guar;
@@ -1600,7 +1680,7 @@ function monthStats(m){
   if(m===CM){
     var v=calcAll();
     var base=v.baseProfit;
-    var pc=ROOMS.filter(function(r){return r.type==='수익형'&&!excludeRoomFromSettle(r);}).length;
+    var pc=settleRoomsByType().prof.length;
     var mcnt=0,msum=0;
     getM(CY,CM).rooms.forEach(function(r,i){ var rm=ROOMS[i];
       if(rm&&rm.type==='관리형'&&!excludeRoomFromSettle(rm)){ mcnt++; msum+=(r.revenue||0); } });   // 기준수익금
@@ -1788,12 +1868,13 @@ function getMonthProfit(m){
     const totalSales=otaT+fldT;
     const profit=totalSales-costT;
 
-    // 수익형/관리형 호실수 (ROOMS 현재 기준)
-    const profitRooms=ROOMS.filter(function(r){return r.type==='수익형'&&!r.terminated;});
+    // 수익형/관리형 호실수 — 단일기준(자가사용·사전해지 제외). 과거월은 아래 d.perf 스냅샷 우선
+    const _srt=settleRoomsByType();
+    const profitRooms=_srt.prof;
     let profitCnt=profitRooms.length;
     const r80cnt=profitRooms.filter(function(r){return r.joinFee===1;}).length;
     const r60cnt=profitRooms.filter(function(r){return r.joinFee===0;}).length;
-    let manageCnt=ROOMS.filter(function(r){return r.type==='관리형'&&!r.terminated;}).length;
+    let manageCnt=_srt.mng.length;
     let base=profitCnt>0&&profit>0?Math.floor(profit/profitCnt):0;
     let r80=Math.round(base*0.8);
     let r60=Math.round(base*0.6);
@@ -1987,7 +2068,7 @@ function renderTransfer(){
       <td><input type="number" class="form-control form-control-xs win" id="tr_corp_${i}" value="${r.corpCost||''}" placeholder="0" style="width:90px" oninput="updateRoom(${i},'corpCost',this.value)"></td>
       <td><input type="number" class="form-control form-control-xs win" id="tr_fee_${i}" value="${r.roomFee||''}" placeholder="0" style="width:90px" oninput="updateRoom(${i},'roomFee',this.value)"></td>
       <td><input type="number" class="form-control form-control-xs win" id="tr_ar_${i}" value="${r.accruedAR||''}" placeholder="0" style="width:90px" oninput="updateRoom(${i},'accruedAR',this.value)"></td>
-      <td><input type="number" class="form-control form-control-xs win" id="tr_pre_${i}" value="${r.prepay||''}" placeholder="0" style="width:90px" oninput="updateRoom(${i},'prepay',this.value)"></td>
+      <td><input type="number" class="form-control form-control-xs win" id="tr_pre_${i}" value="${r.prepay||''}" placeholder="0" style="width:90px" title="선지급금(수동/전월이월)" oninput="updateRoom(${i},'prepay',this.value)">${(r.asPrepay?`<div class="text-danger" style="font-size:.62rem" title="AS 소유주부담(선지급 회수)">+AS ${Number(r.asPrepay).toLocaleString()}</div>`:'')}${(r.prepayRemain?`<div class="text-muted" style="font-size:.58rem" title="상계 후 잔여(다음달 이월)">잔여 ${Number(r.prepayRemain).toLocaleString()}</div>`:'')}</td>
       <td style="background:#fffaf3"><input type="number" class="form-control form-control-xs win" id="tr_unpaid_${i}" value="${r.unpaidPrev||''}" placeholder="0" style="width:90px" title="정산배분의 누적미지급금" onchange="updateRoom(${i},'unpaidPrev',this.value);if(typeof calcSettle==='function')calcSettle();renderTransfer();"></td>
     </tr>`;
   });
@@ -2068,7 +2149,7 @@ function renderExec(){
 
     const rev   = r.revenue||0;
     const ar    = r.accruedAR||0;
-    const pre   = r.prepay||0;
+    const pre   = effPrepay(r);          // 선지급(수동/이월) + AS 소유주부담
     const unpaid= r.unpaidPrev||0;
     const paid    = rev+unpaid-pre-ar;       // 지급금(공급가)=기준수익금+누적미지급금−선지급금−누적미수금
     const paidNet = Math.max(0, paid);       // 실지급금: 음수면 0
@@ -2169,6 +2250,18 @@ function excludeRoomFromSettle(room){
   if(room.terminated && td && td < monFirst) return true;
   return false;
 }
+// 이번달 정산대상 수익형/관리형 호실 — 카운트·baseProfit 분모의 단일기준(자가사용형·사전해지 제외, 당월해지는 포함)
+function settleRoomsByType(){
+  var prof=[], mng=[];
+  ROOMS.forEach(function(r){
+    if(excludeRoomFromSettle(r)) return;
+    if(r.type==='수익형') prof.push(r);
+    else if(r.type==='관리형') mng.push(r);
+  });
+  return {prof:prof, mng:mng};
+}
+// 이체자료 유효 선지급금 = 수동/이월 선지급(prepay) + 이번달 AS 소유주부담(asPrepay)
+function effPrepay(r){ return (Number((r&&r.prepay)||0)) + (Number((r&&r.asPrepay)||0)); }
 function monthEndDate(y,m){ return new Date(y, m, 0); }   // m=1~12 → 해당월 말일(로컬 자정)
 function _parseLocalDate(s){ const p=String(s||'').split('-'); return new Date(+p[0], (+p[1]||1)-1, (+p[2]||1)); }  // YYYY-MM-DD → 로컬 자정(시간대 오차 방지)
 function daysBetween(d1,d2){ return Math.round((d2 - d1)/86400000); }
@@ -2181,8 +2274,8 @@ function calcSettle(){
   const titleEl=document.getElementById('settle-title');
   if(titleEl) titleEl.textContent=mn+' 정산배분(최종)';
 
-  // 수익형 호실 (해지 제외)
-  const profitRooms=ROOMS.filter(function(r){return r.type==='수익형'&&!r.terminated;});
+  // 수익형 호실 (자가사용·사전해지 제외 · 당월해지는 포함) — 단일기준
+  const profitRooms=settleRoomsByType().prof;
   const r80cnt=profitRooms.filter(function(r){return r.joinFee===1;}).length;
   const r60cnt=profitRooms.filter(function(r){return r.joinFee===0;}).length;
   const r80amt=Math.round(baseProfit*0.8);
@@ -2263,14 +2356,20 @@ function calcSettle(){
 
     // === 실지급 계산식 (사용자 지정) ===
     var ar=r.accruedAR||0;          // 누적미수금(차감)
-    var pre=r.prepay||0;            // 선지급금(차감)
+    var preBase=r.prepay||0;        // 선지급금(수동/전월이월)
+    var asPre=r.asPrepay||0;        // AS 소유주부담(선지급 회수)
+    var pre=preBase+asPre;          // 유효 선지급금(차감)
     var unpaid=r.unpaidPrev||0;     // 누적미지급금(가산)
     var effBase=(r.baseOverride!=null)?r.baseOverride:baseStd;   // 기준수익금(편집값 우선)
-    var paid=effBase+unpaid-pre-ar;                              // 지급금(공급가)=기준수익금+누적미지급금−선지급금−누적미수금 (음수가능)
+    var paid=effBase+unpaid-pre-ar;                              // 지급금(공급가)=기준수익금+누적미지급금−선지급금(수동+AS)−누적미수금 (음수가능)
     var paidNet=Math.max(0,paid);                               // 실지급금: 음수면 0
     var vat=Math.round(paidNet*0.1);                            // 부가세 10% (실지급금 기준)
     var final=paidNet+vat;                                      // 실지급수익금=실지급금×1.1
     var baseAmt=effBase;
+    // 선지급 상계 후 잔여(다음달 이월): 선지급을 이번달 수익(기준+미지급−미수)으로 상계, 남은 잔여를 이월
+    var _off=Math.max(0, effBase+unpaid-ar);                    // 상계 가능액(이번달 수익)
+    var prepayRemain=Math.max(0, pre-_off);                     // 잔여 선지급금(다음달 이월분)
+    var unpaidRemain=(paidNet>0)?0:unpaid;                      // 미지급 잔여(지급됐으면 0)
 
     // 2026-05 확정 비고(메모)만 표시 — 금액은 계산식으로 산출
     if(_ovm && _ovm.n && d.rooms[i] && !d.rooms[i].settleNote){ d.rooms[i].settleNote=_ovm.n; r.settleNote=_ovm.n; }
@@ -2282,6 +2381,7 @@ function calcSettle(){
     if(d.rooms[i]){
       d.rooms[i].revenue=baseAmt; d.rooms[i].paid=paid; d.rooms[i].paidNet=paidNet;
       d.rooms[i].vat=vat; d.rooms[i].final=final;
+      d.rooms[i].prepayRemain=prepayRemain; d.rooms[i].unpaidRemain=unpaidRemain;   // 전달 불러오기(이월) 근거
     }
     totBase+=baseAmt; totAR+=ar; totPre+=pre; totUnpaid+=(r.unpaidPrev||0);
     totPaid+=paid; totPaidNet+=paidNet; totVat+=vat; totFinal+=final;
@@ -2344,11 +2444,13 @@ function calcSettle(){
       +'<td class="text-center">'+joinBadge+'</td>'
       +'<td class="text-center" style="background:#f7fbff">'+(isProfit?('<input type="date" class="form-control form-control-xs" style="width:118px;font-size:.66rem;padding:1px 3px" value="'+(_joinD||'')+'" onchange="updateSettleRoom('+i+',\'typeChangeDate\',this.value)" title="수익형 가입일 · 면책60일'+(_gdays!=null?(" · 경과"+_gdays+"일"+(_gdays<60?"→면책일할":"")):"")+'">'+(_gdays!=null&&_gdays<90?'<div style="font-size:.6rem;color:#b45309">'+(_gdays<60?'면책':'일할')+' '+_gdays+'일</div>':'')):'<span class="text-muted">-</span>')+'</td>'
       +'<td class="text-center" style="color:'+(maintFee?'#b45309':'#9ca3af')+'">'+maintFee.toLocaleString()+'</td>'
-      +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:85px" id="s9_fix_'+i+'" value="'+(((_ovm&&_ovm.fm!=null)?_ovm.fm:fixedM)||'')+'" placeholder="0" title="customers 투숙객 월숙박료" onchange="updateSettleRoom('+i+',\'fixedMonthly\',this.value)"></td>'
+      +'<td class="win">'+(isProfit
+          ? '<span class="text-muted" title="수익형은 월고정숙박료 미적용(기준수익 기반 정산)">-</span>'
+          : '<input type="number" class="form-control form-control-xs win" style="width:85px" id="s9_fix_'+i+'" value="'+(((_ovm&&_ovm.fm!=null)?_ovm.fm:fixedM)||'')+'" placeholder="0" title="customers 투숙객 월숙박료(관리형만)" onchange="updateSettleRoom('+i+',\'fixedMonthly\',this.value)">')+'</td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:95px" id="s9_base_'+i+'" value="'+((r.baseOverride!=null?r.baseOverride:baseStd)||'')+'" placeholder="'+(baseStd||0)+'" onchange="updateSettleBase('+i+',this.value)" title="'+(isManage?'월고정숙박료-유지비':(isProfit?'호실당기준수익×적용비율'+_appRatio+'×'+(room.joinFee===1?'80%':'60%'):''))+' = '+baseStd+' (정산 미반영·기준값)'+'"></td>'
       +'<td class="win" style="background:#fffaf3"><input type="number" class="form-control form-control-xs win" style="width:80px" id="s9_unpaid_'+i+'" value="'+(r.unpaidPrev||'')+'" placeholder="0" title="누적 미지급금(가산)" onchange="updateSettleRoom('+i+',\'unpaidPrev\',this.value)"></td>'
       +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_ar_'+i+'" value="'+(ar||'')+'" placeholder="0" onchange="updateSettleRoom('+i+',\'accruedAR\',this.value)"></td>'
-      +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_pre_'+i+'" value="'+(pre||'')+'" placeholder="0" onchange="updateSettleRoom('+i+',\'prepay\',this.value)"></td>'
+      +'<td class="win"><input type="number" class="form-control form-control-xs win" style="width:75px" id="s9_pre_'+i+'" value="'+(preBase||'')+'" placeholder="0" title="선지급금(수동/전월이월)" onchange="updateSettleRoom('+i+',\'prepay\',this.value)">'+(asPre>0?'<div class="text-danger" style="font-size:.6rem" title="AS 소유주부담(선지급 회수)">+AS '+asPre.toLocaleString()+'</div>':'')+(prepayRemain>0?'<div class="text-muted" style="font-size:.58rem" title="상계 후 잔여(다음달 이월)">잔여 '+prepayRemain.toLocaleString()+'</div>':'')+'</td>'
       +'<td class="win fw-bold '+paidCls+'" style="'+(paid<0?'color:#dc2626':'')+'">'+paid.toLocaleString()+'</td>'
       +'<td class="win fw-bold" style="background:#eefcf0">'+paidNet.toLocaleString()+'</td>'
       +'<td class="win">'+vat.toLocaleString()+'</td>'
@@ -2506,7 +2608,7 @@ function downloadSettleExcel(){
   ROOMS.forEach((room,i)=>{
     const r=d.rooms[i]||{};
     rows.push([room.no,room.fl,room.rm,room.trustee,room.type,
-      r.baseOverride||0, r.accruedAR||0, r.prepay||0,
+      r.baseOverride||0, r.accruedAR||0, effPrepay(r),
       r.paid||0, r.vat||0, r.final||0, 0, 0,
       r.paid_yn||'', r.settleNote||'']);
   });
