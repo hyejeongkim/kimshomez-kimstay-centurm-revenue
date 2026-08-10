@@ -1527,24 +1527,14 @@ function calcAll(){
 // ROOM CALC
 // ============================================================
 function calcRoomFinal(){
-  const d=getM(CY,CM);
-  const v=calcAll();
-  const {profit,baseProfit}=v;
-  
-  d.rooms.forEach((r,i)=>{
-    if(r.type==='수익형'){
-      r.revenue=baseProfit;
-    } else {
-      r.revenue=r.revenue||0;
-    }
-    const paid=Math.max(0, r.revenue - (r.accruedAR||0) - (r.prepay||0));
-    const vat=Math.round(paid*0.1);
-    r.paid=paid; r.vat=vat; r.final=paid+vat;
-  });
-  
+  // 단일 계산 기준 = calcSettle(09.정산배분): 수익형 호실별 기준수익금
+  //   = baseProfit(호실당 기준수익, 최저 7·8월 50만/그외 20만 보장) × 유형비율(적용비율) × 배분율(가입80%/면제60%)
+  //   → paid = 기준수익금 + 누적미지급 − 선지급 − 누적미수, final = 실지급 × 1.1
+  // (과거 이 함수는 r.revenue=baseProfit 평면값을 넣어 유형비율·배분율을 누락 → 값이 부풀던 버그. calcSettle로 위임해 제거)
+  calcSettle();          // d.rooms[i].revenue/paid/vat/final 을 비율 반영해 산출·저장
   renderExec();
   renderTransfer();
-  toast('수익금 자동계산 완료!','success');
+  toast('수익금 자동계산 완료! (기준수익 × 유형비율 × 배분율 적용)','success');
 }
 
 // ============================================================
