@@ -1334,8 +1334,9 @@ function renderCurrentSheet(id){
   const activeSheet = id || [...document.querySelectorAll('.sheet-btn')].find(b=>b.classList.contains('active'))?.getAttribute('onclick')?.match(/showSheet\('([^']+)'\)/)?.[1] || 's01';
   if(activeSheet==='s01') renderPerf();
   if(activeSheet==='s02') renderOTA();
-  if(activeSheet==='s04') renderTransfer();
-  if(activeSheet==='s08') renderExec();
+  // 04 이체자료·08 이체실행자료는 r.revenue(기준수익금)에 의존 → 렌더 전 calcSettle로 최신 정산값 반영
+  if(activeSheet==='s04'){ if(typeof calcSettle==='function') calcSettle(); renderTransfer(); }
+  if(activeSheet==='s08'){ if(typeof calcSettle==='function') calcSettle(); renderExec(); }
   if(activeSheet==='s09') calcSettle();
 }
 
@@ -1395,6 +1396,7 @@ function loadMonth(){
   // 계산 및 미리보기 갱신
   calcAll();
   renderPerf();
+  if(typeof calcSettle==='function') calcSettle();   // r.revenue/paid/vat/final 최신화 → 이체(실행)자료에 실제 금액 반영
   renderTransfer();
   renderExec();
 
