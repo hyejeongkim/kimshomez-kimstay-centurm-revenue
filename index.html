@@ -317,7 +317,7 @@ body{background:#f0f2f5;margin:0}
       <span id="exec-title">2026년 6월 정산배분 이체실행자료</span>
       <div class="d-flex gap-2">
         <button class="btn btn-sm btn-success" onclick="calcRoomFinal()">🔄 수익금 자동계산</button>
-        <button class="btn btn-sm btn-outline-success fw-bold" onclick="downloadNHTransfer()" title="수익자별 실지급수익금(VAT포함)을 NH농협 다계좌이체 엑셀로 다운로드">🏦 농협 다계좌이체 엑셀</button>
+        <button class="btn btn-sm btn-outline-success fw-bold" onclick="downloadNHTransfer()" title="members 정산 기준 위탁소유주별 최종입금액(소유자 상계 반영·은행/계좌 포함)을 다계좌 이체 엑셀로 다운로드">🏦 소유주별 이체명세 엑셀</button>
       </div>
     </div>
     <!-- 필터바 -->
@@ -1647,35 +1647,33 @@ function calcRoomFinal(){
 // 08.이체실행자료 → NH농협 다계좌이체 엑셀 다운로드
 // 수익자별 실지급수익금(VAT포함) = renderExec 와 동일 공식(기준수익금+미지급−선지급(AS포함)−미수, ×1.1).
 // 화면 필터와 무관하게 정산대상 전체(해지·자가사용 제외, 실지급>0)를 포함.
-function downloadNHTransfer(){
+// 08.이체실행자료 → 위탁소유주별 최종입금액(다계좌 이체) 엑셀 다운로드.
+// members의 소유주별 정산이체 명세(소유자 단위 상계 반영)를 받아 6월 양식으로 생성.
+async function downloadNHTransfer(){
   if(typeof XLSX==='undefined'){ alert('엑셀 라이브러리 로드 실패 — 새로고침 후 다시 시도하세요.'); return; }
-  if(typeof calcSettle==='function') calcSettle();     // r.revenue(기준수익금) 최신화
-  const d=getM(CY,CM);
-  const mk=CY+'.'+String(CM).padStart(2,'0');
-  const rows=[['순번','입금은행','입금계좌번호','이체금액','예금주명','받는분통장표시','내통장표시']];
-  let seq=0, tot=0;
-  d.rooms.forEach((r,i)=>{
-    const room=ROOMS[i]; if(!room) return;
-    if(excludeRoomFromSettle(room) || room.terminated) return;
-    const rev=Number(r.revenue||0), ar=Number(r.accruedAR||0), unpaid=Number(r.unpaidPrev||0);
-    const pre=(typeof effPrepay==='function')?effPrepay(r):Number(r.prepay||0);
-    const paidNet=Math.max(0, rev+unpaid-pre-ar);
-    const final=paidNet+Math.round(paidNet*0.1);       // 실지급수익금(VAT포함)
-    if(final<=0) return;                                // 실지급 있는 수익자만
-    seq++; tot+=final;
-    rows.push([seq, room.bank||'농협', (room.acct||'').toString().replace(/\s/g,''),
-               final, room.acctHolder||room.trustee||room.nm||'',
-               mk+' 수익금', room.rm+'호 정산']);
-  });
-  if(seq===0){ alert('실지급수익금이 있는 수익자가 없습니다.\n(08 이체실행자료에서 금액 확인 후 다시 시도)'); return; }
-  rows.push([]);
-  rows.push(['','','합계', tot, seq+'건','','']);
-  const ws=XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols']=[{wch:6},{wch:8},{wch:22},{wch:13},{wch:12},{wch:16},{wch:14}];
+  const api=qp('api'), tok=qp('access');
+  if(!api||!tok){ alert('members 연동 정보(api/access)가 없습니다.\n관리자 콘솔의 "📊 정산 사이트" 링크로 열어주세요.'); return; }
+  const mk=CY+'-'+String(CM).padStart(2,'0');
+  let j;
+  try{
+    const r=await fetch(`${api}/api/admin/settlement-transfer?month=${mk}&token=${encodeURIComponent(tok)}`,{cache:'no-store'});
+    j=await r.json(); if(!r.ok) throw new Error(j.detail||('오류 '+r.status));
+  }catch(e){ alert('소유주별 이체명세 불러오기 실패: '+e.message+`\n(members에 ${mk} 정산을 먼저 "🚀 members로 정산전송" 하세요)`); return; }
+  const rows=j.rows||[];
+  if(!rows.length){ alert(`${mk} 지급대상 소유주가 없습니다.\nmembers로 정산전송 후 다시 시도하세요.`); return; }
+  const hdr=['소유주','유형','호실','은행','계좌번호','예금주','지급금','VAT', `${CY}년 ${CM}월 최종입금액`];
+  const aoa=[hdr];
+  rows.forEach(o=>aoa.push([o.owner,o.type,o.rooms,o.bank,(o.account||'').toString(),o.holder,
+                            Number(o.supply||0),Number(o.vat||0),Number(o.total||0)]));
+  aoa.push([]);
+  aoa.push(['합계','', rows.length+'명','','','',
+            Number(j.supply_total||0),Number(j.vat_total||0),Number(j.grand_total||0)]);
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:14},{wch:8},{wch:26},{wch:14},{wch:22},{wch:16},{wch:12},{wch:10},{wch:18}];
   const wb=XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, '다계좌이체');
-  XLSX.writeFile(wb, `NH농협_다계좌이체_${CY}-${String(CM).padStart(2,'0')}.xlsx`);
-  if(typeof toast==='function') toast(`농협 다계좌이체 엑셀: ${seq}건 / ${tot.toLocaleString()}원`,'success');
+  XLSX.utils.book_append_sheet(wb, ws, `${CY}년${CM}월 소유주별 최종입금액`);
+  XLSX.writeFile(wb, `${CY}년${CM}월_소유주별_최종입금액.xlsx`);
+  if(typeof toast==='function') toast(`소유주별 이체명세 ${rows.length}명 / ${Number(j.grand_total||0).toLocaleString()}원`,'success');
 }
 
 // ============================================================
