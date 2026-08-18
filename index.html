@@ -315,7 +315,10 @@ body{background:#f0f2f5;margin:0}
   <div class="card p-3">
     <div class="sec-header">
       <span id="exec-title">2026년 6월 정산배분 이체실행자료</span>
-      <button class="btn btn-sm btn-success" onclick="calcRoomFinal()">🔄 수익금 자동계산</button>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-success" onclick="calcRoomFinal()">🔄 수익금 자동계산</button>
+        <button class="btn btn-sm btn-outline-success fw-bold" onclick="downloadNHTransfer()" title="수익자별 실지급수익금(VAT포함)을 NH농협 다계좌이체 엑셀로 다운로드">🏦 농협 다계좌이체 엑셀</button>
+      </div>
     </div>
     <!-- 필터바 -->
     <div class="p-2 mb-2 rounded d-flex flex-wrap gap-3 align-items-center" style="background:#f0f4fa;border:1px solid #d0dae8">
@@ -1641,6 +1644,40 @@ function calcRoomFinal(){
   toast('수익금 자동계산 완료! (기준수익 × 유형비율 × 배분율 적용)','success');
 }
 
+// 08.이체실행자료 → NH농협 다계좌이체 엑셀 다운로드
+// 수익자별 실지급수익금(VAT포함) = renderExec 와 동일 공식(기준수익금+미지급−선지급(AS포함)−미수, ×1.1).
+// 화면 필터와 무관하게 정산대상 전체(해지·자가사용 제외, 실지급>0)를 포함.
+function downloadNHTransfer(){
+  if(typeof XLSX==='undefined'){ alert('엑셀 라이브러리 로드 실패 — 새로고침 후 다시 시도하세요.'); return; }
+  if(typeof calcSettle==='function') calcSettle();     // r.revenue(기준수익금) 최신화
+  const d=getM(CY,CM);
+  const mk=CY+'.'+String(CM).padStart(2,'0');
+  const rows=[['순번','입금은행','입금계좌번호','이체금액','예금주명','받는분통장표시','내통장표시']];
+  let seq=0, tot=0;
+  d.rooms.forEach((r,i)=>{
+    const room=ROOMS[i]; if(!room) return;
+    if(excludeRoomFromSettle(room) || room.terminated) return;
+    const rev=Number(r.revenue||0), ar=Number(r.accruedAR||0), unpaid=Number(r.unpaidPrev||0);
+    const pre=(typeof effPrepay==='function')?effPrepay(r):Number(r.prepay||0);
+    const paidNet=Math.max(0, rev+unpaid-pre-ar);
+    const final=paidNet+Math.round(paidNet*0.1);       // 실지급수익금(VAT포함)
+    if(final<=0) return;                                // 실지급 있는 수익자만
+    seq++; tot+=final;
+    rows.push([seq, room.bank||'농협', (room.acct||'').toString().replace(/\s/g,''),
+               final, room.acctHolder||room.trustee||room.nm||'',
+               mk+' 수익금', room.rm+'호 정산']);
+  });
+  if(seq===0){ alert('실지급수익금이 있는 수익자가 없습니다.\n(08 이체실행자료에서 금액 확인 후 다시 시도)'); return; }
+  rows.push([]);
+  rows.push(['','','합계', tot, seq+'건','','']);
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:6},{wch:8},{wch:22},{wch:13},{wch:12},{wch:16},{wch:14}];
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '다계좌이체');
+  XLSX.writeFile(wb, `NH농협_다계좌이체_${CY}-${String(CM).padStart(2,'0')}.xlsx`);
+  if(typeof toast==='function') toast(`농협 다계좌이체 엑셀: ${seq}건 / ${tot.toLocaleString()}원`,'success');
+}
+
 // ============================================================
 // RENDER PERF (01. 성과보고)
 // ============================================================
@@ -2079,12 +2116,23 @@ function renderTransfer(){
   const d=getM(CY,CM);
   const tbody=inp('transfer-tbody');
   if(!tbody) return;
+  // 수익형 확정금·법인부담금 자동계산 근거: 영업이익·호실당기준수익
+  const v=(typeof calcAll==='function')?calcAll():{};
+  const profit=Number(v.profit||0), baseProfit=Number(v.baseProfit||0), curRooms=Number(v.curRooms||0);
+  const perC = curRooms>0 ? profit/curRooms : 0;   // 영업이익 ÷ 수익형호실수 (C유형 100% 기준배분)
   let html='';
   d.rooms.forEach((r,i)=>{
     const room=ROOMS[i]||r;
     if(excludeRoomFromSettle(room)) return;   // 09와 동일 제외(자가사용/사전 해지완료)
     const nm=room.trustee||r.nm; const tp=room.type||r.type;
     const badgeClass='badge-'+tp;
+    // 수익형: 확정금 = 기준수익(baseProfit) × 유형비율 × 배분율(80/60), 법인부담금 = 확정금 − 영업이익배분
+    if(tp==='수익형' && !room.terminated){
+      const ratio=(typeof roomTypeRatio==='function'?roomTypeRatio(room):100)/100;
+      const dist=(room.joinFee===1)?0.8:0.6;
+      r.fixedRet = Math.round(baseProfit*ratio*dist);                          // 확정금(수익형 지급 기준수익금)
+      r.corpCost = Math.max(0, Math.round((baseProfit-perC)*ratio*dist));      // 법인부담금(확정금 보장 위한 법인 부족분 부담)
+    }
     html+=`<tr>
       <td>${room.no}</td><td>${room.fl}</td><td>${room.rm}</td><td>${nm}</td>
       <td><span class="badge-type ${badgeClass}">${tp}</span></td>
