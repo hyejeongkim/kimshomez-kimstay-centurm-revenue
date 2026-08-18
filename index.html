@@ -1661,15 +1661,14 @@ async function downloadNHTransfer(){
   }catch(e){ alert('소유주별 이체명세 불러오기 실패: '+e.message+`\n(members에 ${mk} 정산을 먼저 "🚀 members로 정산전송" 하세요)`); return; }
   const rows=j.rows||[];
   if(!rows.length){ alert(`${mk} 지급대상 소유주가 없습니다.\nmembers로 정산전송 후 다시 시도하세요.`); return; }
-  // NH농협 다계좌이체 템플릿(MultipleTransfer) 양식
-  const BCODE={'농협':'011','국민':'004','신한':'088','기업':'003','우리':'020','하나':'081','한국씨티':'027','씨티':'027','SC제일':'023','제일':'023','새마을금고':'045','MG새마을금고':'045','새마을':'045','우체국':'071','케이뱅크':'089','카카오':'090','카카오뱅크':'090','토스':'090','부산':'032','대구':'031','경남':'039','광주':'034','전북':'037','수협':'007','신협':'048'};
-  const bcode=b=>{ b=(b||'').replace(/은행/g,'').trim(); return BCODE[b]||b; };
+  // NH농협 다계좌이체 템플릿(MultipleTransfer) 양식 — 입금은행은 숫자 은행코드만
+  const BCODE={'농협':11,'국민':4,'신한':88,'기업':3,'우리':20,'하나':81,'한국씨티':27,'씨티':27,'SC제일':23,'제일':23,'새마을금고':45,'MG새마을금고':45,'새마을':45,'우체국':71,'케이뱅크':89,'카카오':90,'카카오뱅크':90,'토스':90,'부산':32,'대구':31,'경남':39,'광주':34,'전북':37,'수협':7,'신협':48};
+  const bcode=b=>{ b=(b||'').replace(/은행/g,'').trim(); return (BCODE[b]!=null)?BCODE[b]:b; };
   const aoa=[['은행코드/은행명','입금계좌번호','이체금액','입금통장표시내용','출금통장표시내용','이체메모']];
   let tot=0;
   rows.forEach(o=>{
     const acct=(o.account||'').toString().replace(/\D/g,'');   // 계좌 하이픈 제거
-    const bnm=(o.bank||'').replace(/은행/g,'');
-    aoa.push([ bcode(o.bank)+'/'+bnm, acct, Number(o.total||0),
+    aoa.push([ bcode(o.bank), acct, Number(o.total||0),
                '킴스홈즈수익금', (o.owner+' '+CM+'월').slice(0,20), `${CY}년${CM}월 수익금정산` ]);
     tot+=Number(o.total||0);
   });
