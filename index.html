@@ -106,6 +106,7 @@ body{background:#f0f2f5;margin:0}
       <button class="btn btn-info btn-sm" onclick="hydrateAllFromServer(false)" title="서버에 저장된 모든 월(정산 확정본)을 불러와 성과보고·1분기 추가수익금을 복구">☁️ 서버 전체 복구</button>
       <button class="btn btn-outline-info btn-sm" id="btnPatchSheet" onclick="saveSheetOnly()" title="현재 화면 데이터만 서버에 병합 저장(다른 시트 보존)">🧩 시트 임시저장</button>
       <button class="btn btn-danger btn-sm fw-bold" id="btnConfirm" onclick="confirmMonth()" title="이 달 정산을 최종 확정·잠금(이후 덮어쓰기 차단, 데이터 보호)">🔒 정산확정</button>
+      <button class="btn btn-outline-danger btn-sm" onclick="deleteMonthData()" title="특정 월(YYYY-MM) 데이터를 브라우저·서버에서 삭제(월 선택기에 없는 미래월도 지정 삭제)">🗑 월 삭제</button>
       <button class="btn btn-outline-light btn-sm" onclick="resetMonth()">🔄 초기화</button>
       <span id="cmStatus" class="text-white small"></span>
       <span id="lockStatus" class="small fw-bold"></span>
@@ -2849,6 +2850,36 @@ function resetMonth(){
   localStorage.removeItem(`kims_${CY}_${CM}`);
   loadMonth();
   toast('초기화 완료','info');
+}
+
+// 특정 월(YYYY-MM) 데이터 삭제 — 월 선택기에 없는 미래월(예: 2026-12)도 지정 삭제.
+// 브라우저(localStorage+메모리) + 서버(빈 데이터 강제저장)에서 모두 제거 → 성과보고 누적에서도 빠짐.
+function deleteMonthData(preset){
+  const raw = (preset!=null) ? preset : prompt('삭제할 월을 입력하세요 (YYYY-MM)\n예: 2026-12\n※ 이 브라우저와 서버에서 해당 월 입력값이 모두 지워집니다.', '2026-12');
+  if(raw===null) return;
+  const mm=(raw||'').trim().match(/^(\d{4})-(\d{1,2})$/);
+  if(!mm){ alert('형식 오류 — YYYY-MM 으로 입력하세요. (예: 2026-12)'); return; }
+  const y=parseInt(mm[1],10), m=parseInt(mm[2],10);
+  if(!confirm(`${y}년 ${m}월 데이터를 완전히 삭제할까요? (되돌릴 수 없음)`)) return;
+  // 1) 브라우저(메모리 + localStorage)
+  if(DATA[y]) delete DATA[y][m];
+  localStorage.removeItem('kims_'+y+'_'+m);
+  // 2) 서버 — 빈 데이터로 강제 저장(재동기화돼도 빈 상태 유지)
+  const key = (typeof revAdminKey==='function') ? revAdminKey() : '';
+  const mk = y+'-'+String(m).padStart(2,'0');
+  if(REV_API && key){
+    fetch(REV_API+'/api/month/'+mk,{method:'PUT',
+      headers:{'Content-Type':'application/json','X-Admin-Key':key},
+      body: JSON.stringify({data:{ota:{},field:{},walkin:0,costs:{},rooms:[]}, force:true})
+    }).catch(function(){});
+    if(typeof _revSynced!=='undefined' && _revSynced) delete _revSynced[mk];
+  }
+  // 3) 화면/성과보고 갱신
+  if(CY===y && CM===m){ if(typeof loadMonth==='function') loadMonth(); }
+  if(typeof calcAll==='function') calcAll();
+  if(typeof renderPerf==='function') renderPerf();
+  if(typeof renderCurrentSheet==='function') renderCurrentSheet();
+  alert(`${y}년 ${m}월 데이터를 삭제했습니다.${(REV_API&&key)?'':'\n(관리자 키 미설정 → 브라우저에서만 삭제)'}`);
 }
 
 // ============================================================
