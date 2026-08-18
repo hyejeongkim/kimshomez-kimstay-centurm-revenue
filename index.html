@@ -1716,6 +1716,7 @@ function monthCostMap(m){
       map[it.key]= on?Math.round(a*q):0;
     });});
   } else {
+    if(typeof isMonthAvailable==='function' && !isMonthAvailable(CY,m)) return null;  // 미래월(정산 미도래) → 빈 컬럼(stray 데이터 무시)
     var raw=localStorage.getItem('kims_'+CY+'_'+m);
     if(!raw) return null;                       // 데이터 없는 월 → null(빈 컬럼)
     try{ var d=JSON.parse(raw); if(d.costs){
@@ -1896,6 +1897,7 @@ function renderPerf(){
   renderPerfAccum(prevMonths[0]||null, prevMonths[1]||null);
 }
 function getMonthProfit(m){
+  if(m!==CM && typeof isMonthAvailable==='function' && !isMonthAvailable(CY,m)) return null;  // 미래월(정산 미도래) 무시 — stray 데이터 방지
   const raw=localStorage.getItem('kims_'+CY+'_'+m);
   if(!raw) return null;
   try{
@@ -2357,6 +2359,7 @@ function calcSettle(){
   const q1ByRoom=new Array(ROOMS.length).fill(0);
   const q2ByRoom=new Array(ROOMS.length).fill(0);
   for(var m=1;m<=12;m++){
+    if(m!==CM && typeof isMonthAvailable==='function' && !isMonthAvailable(CY,m)) continue;  // 미래월(정산 미도래) 무시 — stray 데이터 방지
     var raw=localStorage.getItem('kims_'+CY+'_'+m);
     if(!raw) continue;
     try{
